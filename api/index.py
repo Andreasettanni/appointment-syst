@@ -30,8 +30,9 @@ CORS(
     app,
     resources={r"/*": {"origins": [
         "http://localhost:3000",  # Per il testing in locale
-        "https://clientappo-r3ghpgiu1-andreasettannis-projects.vercel.app",  # Nuovo frontend su Vercel
-        "https://appo-liard.vercel.app",  # Vecchio frontend (se esiste ancora)
+        "https://clientappo-nadesud1b-andreasettannis-projects.vercel.app",  # Nuovo frontend su Vercel
+        "https://clientappo-r3ghpgiu1-andreasettannis-projects.vercel.app",  # Eventuale altro URL frontend
+        "https://appo-liard.vercel.app",  # Vecchio frontend (se ancora in uso)
         "https://appo-wjc5-h09acpeed-andreasettannis-projects.vercel.app",  # URL backend diretto
         "https://mioalias.vercel.app",  # Alias backend
     ]}},

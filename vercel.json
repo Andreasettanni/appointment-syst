@@ -16,12 +16,26 @@
   "routes": [
     { "src": "/api/(.*)", "dest": "api/index.py" },
     { "src": "/(.*)", "dest": "/index.html" }
-  ]
-}
-{
+  ],
   "functions": {
     "api/auth/register": {
       "maxDuration": 60
+    },
+    "api/auth/login": {
+      "maxDuration": 30
+    },
+    "api/auth/reset-password": {
+      "maxDuration": 30
+    },
+    "api/auth/forgot-password": {
+      "maxDuration": 30
     }
+  },
+  "env": {
+    "DB_HOST": "34.17.85.107",
+    "DB_USER": "root",
+    "DB_NAME": "appointment_db",
+    "SMTP_HOST": "smtp.gmail.com",
+    "SMTP_PORT": "587"
   }
 }

@@ -10,6 +10,9 @@ from datetime import datetime, timedelta
 ##############################################################################
 # CONFIGURAZIONE FLASK E DB
 ##############################################################################
+##############################################################################
+# CONFIGURAZIONE FLASK E DB
+##############################################################################
 app = Flask(__name__)
 
 # Credenziali del DB
@@ -25,26 +28,60 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = "chiave_super_segreta_123"
 
 db = SQLAlchemy(app)
+
 # Configura i CORS
 CORS(
     app,
     resources={r"/*": {"origins": [
-        "http://localhost:3000",  # Per il testing in locale
-        "https://clientappo-nadesud1b-andreasettannis-projects.vercel.app",  # Nuovo frontend su Vercel
-        "https://clientappo-r3ghpgiu1-andreasettannis-projects.vercel.app",  # Eventuale altro URL frontend
-        "https://appo-liard.vercel.app",  # Vecchio frontend (se ancora in uso)
-        "https://appo-wjc5-h09acpeed-andreasettannis-projects.vercel.app",  # URL backend diretto
-        "https://mioalias.vercel.app",  # Alias backend
+        "http://localhost:3000",
+        "https://clientappo.vercel.app",  # Frontend principale
+        "https://clientappo-nadesud1b-andreasettannis-projects.vercel.app",
+        "https://clientappo-r3ghpgiu1-andreasettannis-projects.vercel.app",
+        "https://appo-liard.vercel.app",
+        "https://appo-wjc5-h09acpeed-andreasettannis-projects.vercel.app",
+        "https://mioalias.vercel.app"
     ]}},
     supports_credentials=True,
+    allow_headers=["Content-Type", "Authorization", "Access-Control-Allow-Origin"],
+    expose_headers=["Access-Control-Allow-Origin"],
+    max_age=600
 )
 
 @app.after_request
 def add_cors_headers(response):
-    response.headers.add("Access-Control-Allow-Origin", request.headers.get("Origin", "*"))
-    response.headers.add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
+    origin = request.headers.get("Origin")
+    allowed_origins = [
+        "http://localhost:3000",
+        "https://clientappo.vercel.app",
+        "https://clientappo-nadesud1b-andreasettannis-projects.vercel.app",
+        "https://clientappo-r3ghpgiu1-andreasettannis-projects.vercel.app",
+        "https://appo-liard.vercel.app",
+        "https://appo-wjc5-h09acpeed-andreasettannis-projects.vercel.app",
+        "https://mioalias.vercel.app"
+    ]
+    
+    if origin in allowed_origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        
+    # Aggiungi header di sicurezza
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    
     app.logger.info(f"CORS headers aggiunti per {request.method} a {request.url}")
+    return response
+
+# Aggiungi gestore OPTIONS per le richieste preflight
+@app.route("/api/auth/register", methods=["OPTIONS"])
+@app.route("/api/auth/login", methods=["OPTIONS"])
+@app.route("/api/calendar/<int:user_id>", methods=["OPTIONS"])
+@app.route("/api/admin/operators/<int:admin_id>", methods=["OPTIONS"])
+@app.route("/api/admin/clients/<int:admin_id>", methods=["OPTIONS"])
+def handle_preflight():
+    response = jsonify({"message": "OK"})
     return response
 
 

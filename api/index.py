@@ -39,6 +39,13 @@ CORS(
     supports_credentials=True,
 )
 
+@app.after_request
+def add_cors_headers(response):
+    response.headers.add("Access-Control-Allow-Origin", request.headers.get("Origin", "*"))
+    response.headers.add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
+    app.logger.info(f"CORS headers aggiunti per {request.method} a {request.url}")
+    return response
 
 
 ##############################################################################

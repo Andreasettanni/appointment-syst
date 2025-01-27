@@ -18,3 +18,10 @@
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
+{
+  "functions": {
+    "api/auth/register": {
+      "maxDuration": 60
+    }
+  }
+}

@@ -1,31 +1,19 @@
-from flask import Flask, request, jsonify, redirect
-from flask_sqlalchemy import SQLAlchemy
+import os
+from flask import Flask, request
 from flask_cors import CORS
-from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timedelta
-from sqlalchemy import text
-import time
+from flask_sqlalchemy import SQLAlchemy
 
-##############################################################################
-# CONFIGURAZIONE FLASK E DBzaaaaaaaaa
-##############################################################################
 app = Flask(__name__)
 
-# Credenziali del DB
-db_user = "root"
-db_password = "lollo201416"
-db_host = "34.17.85.107"
-db_name = "appointment_db"
+# Configuration from environment variables (recommended)
+allowed_origins = os.environ.get("ALLOWED_ORIGINS", "").split(",")
+if not allowed_origins:
+    allowed_origins = ["http://localhost:3000"] # Default for development
 
-# Configurazione ottimizzata del database per Vercel
-app.config["SQLALCHEMY_DATABASE_URI"] = (
-    f"mysql+pymysql://{db_user}:{db_password}@{db_host}/{db_name}"
-    "?connect_timeout=5"  # Timeout ridotto per Vercel
-)
 
-# Configurazione ottimizzata del pool di connessioni
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")  # Get from environment
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_size": 5,  # Ridotto per Vercel
+    "pool_size": 5,
     "max_overflow": 10,
     "pool_timeout": 5,
     "pool_recycle": 1800,
@@ -38,54 +26,22 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 }
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["SECRET_KEY"] = "chiave_super_segreta_123"
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") #Get from environment
+
 
 db = SQLAlchemy(app)
 
-# Configura i CORS
-CORS(
-    app,
-    resources={r"/*": {"origins": [
-        "http://localhost:3000",
-        "https://clientappo.vercel.app",  # Frontend principale
-        "https://appointment-syst.vercel.app",  # Backend URL
-        "https://clientappo-nadesud1b-andreasettannis-projects.vercel.app",
-        "https://clientappo-r3ghpgiu1-andreasettannis-projects.vercel.app",
-        "https://appo-liard.vercel.app",
-        "https://appo-wjc5-h09acpeed-andreasettannis-projects.vercel.app",
-        "https://mioalias.vercel.app"
-    ]}},
-    supports_credentials=True,
-    expose_headers=["Access-Control-Allow-Origin"],
-    allow_headers=["Content-Type", "Authorization"],
-    max_age=600
+CORS(app,
+     resources={r"/*": {"origins": allowed_origins}},
+     supports_credentials=True,
+     allow_headers=["Content-Type", "Authorization"],
+     max_age=600
 )
 
-@app.after_request
-def add_cors_headers(response):
-    origin = request.headers.get("Origin")
-    allowed_origins = [
-        "http://localhost:3000",
-        "https://clientappo.vercel.app",
-        "https://appointment-syst.vercel.app",
-        "https://clientappo-nadesud1b-andreasettannis-projects.vercel.app",
-        "https://clientappo-r3ghpgiu1-andreasettannis-projects.vercel.app",
-        "https://appo-liard.vercel.app",
-        "https://appo-wjc5-h09acpeed-andreasettannis-projects.vercel.app",
-        "https://mioalias.vercel.app"
-    ]
-    
-    if origin in allowed_origins:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    
-    return response
+
+# ... rest of your application code ...
+
+
 
 # Continua dal codice precedente...
 

@@ -7,7 +7,7 @@ from sqlalchemy import text
 import time
 
 ##############################################################################
-# CONFIGURAZIONE FLASK E DBz
+# CONFIGURAZIONE FLASK E DBzaaa
 ##############################################################################
 app = Flask(__name__)
 

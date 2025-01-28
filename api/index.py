@@ -29,11 +29,11 @@ CORS(
     resources={r"/api/*": {"origins": [
         "http://localhost:3000",
         "https://clientappo.vercel.app",
-         "https://clientappo-g97v8ysym-andreasettannis-projects.vercel.app/",
         "https://appointment-syst.vercel.app",
         "https://clientappo-nadesud1b-andreasettannis-projects.vercel.app",
         "https://clientappo-r3ghpgiu1-andreasettannis-projects.vercel.app",
-         "https://clientappo-kynnn0qs7-andreasettannis-projects.vercel.app",
+         "https://clientappo-g97v8ysym-andreasettannis-projects.vercel.app/",
+        "https://clientappo-kynnn0qs7-andreasettannis-projects.vercel.app",
         "https://appo-liard.vercel.app",
         "https://appo-wjc5-h09acpeed-andreasettannis-projects.vercel.app",
         "https://mioalias.vercel.app"
@@ -55,18 +55,19 @@ def get_db():
         logger.error(f"Errore connessione database: {str(e)}")
         raise
 
+
 @app.after_request
 def add_cors_headers(response):
     """Aggiunge gli header CORS necessari"""
     origin = request.headers.get("Origin")
     allowed_origins = [
-         "http://localhost:3000",
+        "http://localhost:3000",
          "https://clientappo.vercel.app",
          "https://clientappo-g97v8ysym-andreasettannis-projects.vercel.app/",
         "https://appointment-syst.vercel.app",
         "https://clientappo-nadesud1b-andreasettannis-projects.vercel.app",
         "https://clientappo-r3ghpgiu1-andreasettannis-projects.vercel.app",
-         "https://clientappo-kynnn0qs7-andreasettannis-projects.vercel.app",
+        "https://clientappo-kynnn0qs7-andreasettannis-projects.vercel.app",
         "https://appo-liard.vercel.app",
         "https://appo-wjc5-h09acpeed-andreasettannis-projects.vercel.app",
         "https://mioalias.vercel.app"
@@ -77,7 +78,7 @@ def add_cors_headers(response):
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    
+        
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
@@ -100,8 +101,11 @@ def add_cors_headers(response):
 @app.route("/api/admin/slots/<int:slot_id>/<string:action>", methods=["OPTIONS"])
 @app.route("/api/client/slots/request", methods=["OPTIONS"])
 def handle_preflight():
-    response = jsonify({"message": "OK"})
+    """Gestisce le richieste OPTIONS senza autenticazione"""
+    response = jsonify({"message": "OK"}) # Risposta con codice 200/OK
     return response
+
+
 
 
 @app.route("/")

@@ -32,7 +32,7 @@ CORS(
         "https://appointment-syst.vercel.app",
         "https://clientappo-nadesud1b-andreasettannis-projects.vercel.app",
         "https://clientappo-r3ghpgiu1-andreasettannis-projects.vercel.app",
-        "https://clientappo-kynnn0qs7-andreasettannis-projects.vercel.app",
+        "https://clientappo-g97v8ysym-andreasettannis-projects.vercel.app/",
         "https://appo-liard.vercel.app",
         "https://appo-wjc5-h09acpeed-andreasettannis-projects.vercel.app",
         "https://mioalias.vercel.app"

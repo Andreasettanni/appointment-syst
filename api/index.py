@@ -1,662 +1,1590 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import pymysql
-import time
-from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timedelta
-import logging
+/******************************************************************************
+ * File: Dashboard.jsx
+ * ----------------------------------------------------------------------------
+ * Frontend React che punta al backend Flask su:
+ *    appointment-syst-kykv994q5-andreasettannis-projects.vercel.app
+ ******************************************************************************/
+import React, { useState, useEffect } from "react";
+import { Calendar, momentLocalizer } from "react-big-calendar";
+import moment from "moment";
+import "moment/locale/it";
+import "react-big-calendar/lib/css/react-big-calendar.css";
 
-# Configura logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+// Importa i tuoi componenti UI reali da qui (sostituisci con i tuoi percorsi)
+import {
+    Alert,
+    AlertDescription,
+    Button,
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+    Input,
+    Label,
+    Table,
+    TableBody,
+    TableCell,
+    TableHeader,
+    TableRow,
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "./ui"; // Adatta il percorso
 
-app = Flask(__name__)
+import {
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip as ReTooltip,
+    Legend,
+    ResponsiveContainer,
+    PieChart,
+    Pie,
+    Cell,
+} from "recharts";
 
-# Configurazione database
-DB_CONFIG = {
-    "host": "34.17.85.107",
-    "user": "root",
-    "password": "lollo201416",
-    "db": "appointment_db",
-    "connect_timeout": 3,
-    "read_timeout": 3,
-    "write_timeout": 3
+import {
+    CalendarIcon,
+    Users,
+    UserPlus,
+    Bell,
+    Lock,
+    Mail,
+    Clock,
+    LogOut,
+    Calendar as CalendarIcon2,
+    PlusCircle,
+} from "lucide-react";
+
+moment.locale("it");
+const localizer = momentLocalizer(moment);
+
+const API_URL = "https://appointment-syst-kykv994q5-andreasettannis-projects.vercel.app/api"; // URL completo del backend
+
+// Configurazione per fetch (necessaria per CORS)
+const fetchConfig = {
+    headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+    },
+    // Nessuna 'mode: "cors"' qui.  Il CORS va gestito nel backend
+};
+
+export { API_URL, fetchConfig };
+
+const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
+
+function getAdminIdForUser(user) {
+    return user?.role === "admin" ? user.id : user?.admin_id;
 }
 
-# Configurazione CORS
-CORS(
-    app,
-    resources={r"/api/*": {"origins": [
-        "http://localhost:3000",
-        "https://clientappo.vercel.app",
-        "https://appointment-syst.vercel.app",
-        "https://clientappo-nadesud1b-andreasettannis-projects.vercel.app",
-        "https://clientappo-r3ghpgiu1-andreasettannis-projects.vercel.app",
-         "https://clientappo-g97v8ysym-andreasettannis-projects.vercel.app/",
-        "https://clientappo-kynnn0qs7-andreasettannis-projects.vercel.app",
-        "https://appo-liard.vercel.app",
-        "https://appo-wjc5-h09acpeed-andreasettannis-projects.vercel.app",
-        "https://mioalias.vercel.app"
-    ]}},
-    supports_credentials=True,
-    expose_headers=["Access-Control-Allow-Origin"],
-    allow_headers=["Content-Type", "Authorization"],
-    max_age=600
-)
 
-def get_db():
-    """Crea una nuova connessione al database"""
-    try:
-        logger.info("Tentativo di connessione al database...")
-        conn = pymysql.connect(**DB_CONFIG)
-        logger.info("Connessione al database riuscita")
-        return conn
-    except Exception as e:
-        logger.error(f"Errore connessione database: {str(e)}")
-        raise
+// --- Modale Crea Appuntamento ---
+const CreateAppointmentModal = ({
+    isOpen,
+    onClose,
+    operatori,
+    clienti,
+    onAddAppointment,
+}) => {
+   // ... (codice modale invariato)
+};
 
+// --- Modale Modifica/Elimina Appuntamento ---
+const EditAppointmentModal = ({
+    isOpen,
+    onClose,
+    appointment,
+    onSave,
+    onDelete,
+}) => {
+    // ... (codice modale invariato)
+};
 
-@app.after_request
-def add_cors_headers(response):
-    """Aggiunge gli header CORS necessari"""
-    origin = request.headers.get("Origin")
-    allowed_origins = [
-        "http://localhost:3000",
-         "https://clientappo.vercel.app",
-         "https://clientappo-g97v8ysym-andreasettannis-projects.vercel.app/",
-        "https://appointment-syst.vercel.app",
-        "https://clientappo-nadesud1b-andreasettannis-projects.vercel.app",
-        "https://clientappo-r3ghpgiu1-andreasettannis-projects.vercel.app",
-        "https://clientappo-kynnn0qs7-andreasettannis-projects.vercel.app",
-        "https://appo-liard.vercel.app",
-        "https://appo-wjc5-h09acpeed-andreasettannis-projects.vercel.app",
-        "https://mioalias.vercel.app"
-    ]
-    
-    if origin in allowed_origins:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    
-    logger.info(f"CORS headers aggiunti per {request.method} a {request.url}")
-    return response
+// --- AdminStatsPanel ---
+const AdminStatsPanel = ({ operatori, appuntamenti }) => {
+   // ... (codice invariato)
+};
 
+// --- Componente Dashboard ---
+const Dashboard = () => {
+    /*******************************************
+     * Hook di stato globali
+     *******************************************/
+    const [view, setView] = useState("login");
+    const [user, setUser] = useState(null);
 
-# Gestione OPTIONS per tutte le route /api/...
-@app.route("/api/auth/register", methods=["OPTIONS"])
-@app.route("/api/auth/login", methods=["OPTIONS"])
-@app.route("/api/calendar/<int:user_id>", methods=["OPTIONS"])
-@app.route("/api/admin/operators/<int:admin_id>", methods=["OPTIONS"])
-@app.route("/api/admin/clients/<int:admin_id>", methods=["OPTIONS"])
-@app.route("/api/admin/operators/add", methods=["OPTIONS"])
-@app.route("/api/admin/appointments", methods=["OPTIONS"])
-@app.route("/api/admin/appointments/<int:appointment_id>", methods=["OPTIONS"])
-@app.route("/api/admin/send-reminders", methods=["OPTIONS"])
-@app.route("/api/admin/slots/pending", methods=["OPTIONS"])
-@app.route("/api/admin/slots/<int:slot_id>/<string:action>", methods=["OPTIONS"])
-@app.route("/api/client/slots/request", methods=["OPTIONS"])
-def handle_preflight():
-    """Gestisce le richieste OPTIONS senza autenticazione"""
-    response = jsonify({"message": "OK"}) # Risposta con codice 200/OK
-    return response
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
 
+    // Login
+    const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
 
+    // Register Admin
+    const [regData, setRegData] = useState({
+        username: "",
+        email: "",
+        password: "",
+        phone: "",
+    });
 
+    // Recover
+    const [recoverEmail, setRecoverEmail] = useState("");
 
-@app.route("/")
-def index_root():
-    return "Server Flask attivo!"
+    // Admin: operatori, clienti
+    const [operatori, setOperatori] = useState([]);
+    const [clienti, setClienti] = useState([]);
+    const [newOperator, setNewOperator] = useState({
+        username: "",
+        email: "",
+        password: "",
+        phone: "",
+        specialization: "",
+    });
+    const [newClient, setNewClient] = useState({
+        username: "",
+        email: "",
+        password: "",
+        phone: "",
+    });
 
-@app.route("/api")
-def index_api():
-    return jsonify({"message": "Benvenuto nell'API!"})
+    // Calendario
+    const [calendarEvents, setCalendarEvents] = useState([]);
+    const [appuntamenti, setAppuntamenti] = useState([]);
 
-@app.route("/api/auth/register", methods=["POST"])
-def register():
-    """Registrazione con timeout ridotto e gestione errori migliorata"""
-    logger.info("Inizio registrazione")
-    start_time = time.time()
-    try:
-        data = request.get_json()
-        logger.info(f"Dati ricevuti: {data}")
-        
-        if not data:
-            return jsonify({"error": "Dati mancanti"}), 400
+    // Admin Calendario
+    const [adminCalendarView, setAdminCalendarView] = useState("week");
+    const [adminCalendarDate, setAdminCalendarDate] = useState(new Date());
 
-        required = ["username", "password", "email"]
-        if not all(field in data for field in required):
-            return jsonify({"error": "Campi obbligatori mancanti"}), 400
+    // Operator Calendario
+    const [operatorCalendarView, setOperatorCalendarView] = useState("week");
+    const [operatorCalendarDate, setOperatorCalendarDate] = useState(new Date());
 
-        try:
-            conn = get_db()
-        except Exception as e:
-            logger.error(f"Errore connessione DB: {str(e)}")
-            return jsonify({"error": "Errore di connessione al database"}), 500
+    // Client Calendario
+    const [clientCalendarView, setClientCalendarView] = useState("week");
+    const [clientCalendarDate, setClientCalendarDate] = useState(new Date());
 
-        try:
-            with conn.cursor() as cursor:
-                # Verifica duplicati
-                cursor.execute("""
-                    SELECT username FROM users 
-                    WHERE username = %s OR email = %s
-                    LIMIT 1
-                """, (data["username"], data["email"]))
-                
-                if cursor.fetchone():
-                    return jsonify({"error": "Username o email già esistenti"}), 400
+    // Modali Appuntamenti
+    const [isCreateApptOpen, setIsCreateApptOpen] = useState(false);
+    const [selectedAppointment, setSelectedAppointment] = useState(null);
+    const [isEditApptOpen, setIsEditApptOpen] = useState(false);
 
-                # Creazione utente
-                hashed = generate_password_hash(data["password"], method="scrypt")
-                cursor.execute("""
-                    INSERT INTO users (username, password_hash, email, phone, role, admin_id)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (
-                    data["username"],
-                    hashed,
-                    data["email"],
-                    data.get("phone", ""),
-                    data.get("role", "client"),
-                    data.get("admin_id")
-                ))
-                conn.commit()
-                new_user_id = cursor.lastrowid
+    // Pending Slots (admin)
+    const [pendingSlots, setPendingSlots] = useState([]);
 
-            logger.info(f"Registrazione completata in {time.time() - start_time:.2f} secondi")
-            return jsonify({
-                "message": "Registrazione completata",
-                "user": {
-                    "id": new_user_id,
-                    "username": data["username"],
-                    "email": data["email"],
-                    "role": data.get("role", "client")
+    // Client: richiesta slot
+    const [requestSlotData, setRequestSlotData] = useState({
+        operator_id: "",
+        day_of_week: "",
+        start_time: "",
+        end_time: "",
+    });
+
+    /*******************************************
+     * useEffect: carica dati se user è loggato
+     *******************************************/
+    useEffect(() => {
+        if (user?.id) {
+            fetchCalendarData();
+            if (user.role === "admin") {
+                fetchOperatorsAndClients();
+                fetchPendingSlots();
+            }
+        }
+        // eslint-disable-next-line
+    }, [user]);
+
+    /*******************************************
+     * FUNZIONI: Auth
+     *******************************************/
+    async function handleLogin(e) {
+        e.preventDefault();
+        setError("");
+        setSuccess("");
+        try {
+            const res = await fetch(`${API_URL}/auth/login`, {
+                ...fetchConfig,
+                method: "POST",
+                body: JSON.stringify({ username, password }),
+            });
+
+            if (!res.ok) {
+                // Gestisci errori di rete e CORS
+               if (res.status === 401) { // Unauthorized
+                   setError("Credenziali non valide");
+                } else if (res.type === 'opaque' || (res.status === 0 && !res.ok)) {
+                  setError("Errore di rete o CORS. Verifica la connessione al backend.");
+                } else {
+                  let errorData = {};
+                  try {
+                    errorData = await res.json()
+                   } catch (jsonError) {
+                      setError("Errore durante il login");
+                      return;
+                   }
+
+                    setError(errorData.error || "Errore durante il login");
                 }
-            }), 201
+                return; // interrompe la funzione in caso di errore
+            }
 
-        finally:
-            conn.close()
-            logger.info("Connessione database chiusa")
+            const data = await res.json();
+            setUser(data.user);
+            setView(data.user.role);
 
-    except Exception as e:
-        logger.error(f"Errore registrazione: {str(e)}")
-        return jsonify({"error": "Errore durante la registrazione"}), 500
+        } catch (err) {
+            console.error("handleLogin error:", err);
+            setError("Errore di rete");
+        }
+    }
 
-@app.route("/api/auth/login", methods=["POST"])
-def login():
-    """Login con timeout ridotto"""
-    logger.info("Inizio login")
-    start_time = time.time()
-    try:
-        data = request.get_json()
-        logger.info(f"Dati login ricevuti: {data}")
-        
-        if not data or "username" not in data or "password" not in data:
-            return jsonify({"error": "Credenziali mancanti"}), 400
 
-        try:
-            conn = get_db()
-        except Exception as e:
-            logger.error(f"Errore connessione DB: {str(e)}")
-            return jsonify({"error": "Errore di connessione al database"}), 500
+    function handleLogout() {
+        setUser(null);
+        setView("login");
+        setError("");
+        setSuccess("");
+        setUsername("");
+        setPassword("");
+    }
 
-        try:
-            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-                cursor.execute("""
-                    SELECT id, username, password_hash, email, role, admin_id, phone
-                    FROM users 
-                    WHERE username = %s
-                    LIMIT 1
-                """, (data["username"],))
-                user = cursor.fetchone()
+    async function handleRegister(e) {
+        e.preventDefault();
+        setError("");
+        setSuccess("");
+        try {
+            const res = await fetch(`${API_URL}/auth/register`, {
+                ...fetchConfig,
+                method: "POST",
+                body: JSON.stringify({ ...regData, role: "admin" }),
+            });
+               if (!res.ok) {
+                // Gestisci errori di rete e CORS
+                if (res.type === 'opaque' || (res.status === 0 && !res.ok)) {
+                    setError("Errore di rete o CORS durante la registrazione. Verifica la connessione al backend.");
+                  } else {
+                     let errorData = {};
+                     try {
+                        errorData = await res.json()
+                     } catch (jsonError) {
+                         setError("Errore durante la registrazione");
+                         return;
+                     }
 
-            if not user or not check_password_hash(user["password_hash"], data["password"]):
-                return jsonify({"error": "Credenziali non valide"}), 401
+                     setError(errorData.error || "Errore durante la registrazione");
+                  }
+                 return; // interrompe la funzione in caso di errore
+             }
 
-            logger.info(f"Login completato in {time.time() - start_time:.2f} secondi")
-            return jsonify({
-                "user": {
-                    "id": user["id"],
-                    "username": user["username"],
-                    "email": user["email"],
-                    "role": user["role"],
-                    "admin_id": user["admin_id"],
-                    "phone": user["phone"]
+            const data = await res.json();
+
+            setSuccess("Registrazione completata! Ora effettua il login.");
+            setRegData({ username: "", email: "", password: "", phone: "" });
+        } catch (err) {
+            console.error("handleRegister error:", err);
+            setError("Errore di rete");
+        }
+    }
+
+    function handleRecover(e) {
+        e.preventDefault();
+        setError("");
+        setSuccess("Email di recupero (finta) inviata!");
+    }
+
+    /*******************************************
+     * FUNZIONI: Admin
+     *******************************************/
+     async function fetchOperatorsAndClients() {
+        const adminId = getAdminIdForUser(user);
+        if (!adminId) return;
+         try {
+            const [opRes, clRes] = await Promise.all([
+                fetch(`${API_URL}/admin/operators/${adminId}`, fetchConfig),
+                fetch(`${API_URL}/admin/clients/${adminId}`, fetchConfig),
+            ]);
+
+             if (!opRes.ok || !clRes.ok) {
+                 if (opRes.type === 'opaque' || clRes.type === 'opaque' ||
+                     (opRes.status === 0 && !opRes.ok) || (clRes.status === 0 && !clRes.ok)) {
+                    setError("Errore di rete o CORS durante caricamento operatori/clienti. Verifica la connessione al backend.");
+                } else {
+                   let opData = {};
+                   let clData = {};
+                     try {
+                        opData = opRes.ok ? await opRes.json() : {error: "Errore caricamento operatori"};
+                        clData = clRes.ok ? await clRes.json() : {error: "Errore caricamento clienti"};
+                     } catch (jsonError) {
+                        setError("Errore durante il caricamento operatori/clienti")
+                         return;
+                     }
+
+
+                   setError(opData.error || clData.error || "Errore caricamento operatori/clienti");
                 }
-            }), 200
-
-        finally:
-            conn.close()
-            logger.info("Connessione database chiusa")
-
-    except Exception as e:
-        logger.error(f"Errore login: {str(e)}")
-        return jsonify({"error": "Errore durante il login"}), 500
-
-
-@app.route("/api/calendar/<int:user_id>", methods=["GET"])
-def get_calendar_data(user_id):
-    """Calendario ottimizzato con query dirette"""
-    logger.info(f"Richiesta calendario per user_id: {user_id}")
-    try:
-        conn = get_db()
-        try:
-            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-                # Ottieni ruolo utente
-                cursor.execute("SELECT role FROM users WHERE id = %s", (user_id,))
-                user = cursor.fetchone()
-                if not user:
-                    return jsonify({"error": "Utente non trovato"}), 404
-
-                # Query ottimizzate per slot e appuntamenti
-                if user['role'] == "admin":
-                    cursor.execute("SELECT * FROM slots")
-                    slots = cursor.fetchall()
-                    cursor.execute("SELECT * FROM appointments")
-                    appointments = cursor.fetchall()
-                elif user['role'] == "operator":
-                    cursor.execute("SELECT * FROM slots WHERE operator_id = %s", (user_id,))
-                    slots = cursor.fetchall()
-                    cursor.execute("SELECT * FROM appointments WHERE operator_id = %s", (user_id,))
-                    appointments = cursor.fetchall()
-                else:  # client
-                    cursor.execute("SELECT * FROM slots WHERE status = 'approved'")
-                    slots = cursor.fetchall()
-                    cursor.execute("SELECT * FROM appointments WHERE client_id = %s", (user_id,))
-                    appointments = cursor.fetchall()
-
-                # Converti in eventi
-                events = []
-                now = datetime.now()
-
-                # Processa slot
-                for slot in slots:
-                    cursor.execute("SELECT username FROM users WHERE id = %s", (slot['operator_id'],))
-                    operator = cursor.fetchone()
-                    
-                    diff = slot['day_of_week'] - now.weekday()
-                    if diff < 0:
-                        diff += 7
-                    base_date = now.date() + timedelta(days=diff)
-                    start_dt = datetime.combine(base_date, slot['start_time'])
-                    end_dt = datetime.combine(base_date, slot['end_time'])
-
-                    events.append({
-                        "type": "slot",
-                        "id": f"slot-{slot['id']}",
-                        "slot_id": slot['id'],
-                        "operator_id": slot['operator_id'],
-                        "operator_name": operator['username'] if operator else "???",
-                        "start_time": start_dt.isoformat(),
-                        "end_time": end_dt.isoformat(),
-                        "status": slot['status']
-                    })
-
-                # Processa appuntamenti
-                for appt in appointments:
-                    cursor.execute("SELECT username FROM users WHERE id IN (%s, %s)", 
-                                 (appt['client_id'], appt['operator_id']))
-                    users = cursor.fetchall()
-                    client = next((u for u in users if u['username']), {"username": "???"})
-                    operator = next((u for u in users if u['username']), {"username": "???"})
-
-                    events.append({
-                        "type": "appointment",
-                        "id": appt['id'],
-                        "client_id": appt['client_id'],
-                        "operator_id": appt['operator_id'],
-                        "clientName": client['username'],
-                        "operatorName": operator['username'],
-                        "start_time": appt['start_time'].isoformat(),
-                        "end_time": appt['end_time'].isoformat(),
-                        "service_type": appt['service_type'],
-                        "status": appt['status']
-                    })
-
-                return jsonify({"events": events}), 200
-
-        finally:
-            conn.close()
-
-    except Exception as e:
-        logger.error(f"Errore calendario: {str(e)}")
-        return jsonify({"error": "Errore durante il recupero del calendario"}), 500
-
-@app.route("/api/admin/operators/<int:admin_id>", methods=["GET"])
-def get_operators(admin_id):
-    """Lista operatori ottimizzata"""
-    try:
-        conn = get_db()
-        try:
-            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-                cursor.execute("""
-                    SELECT id, username, email, phone, specialization 
-                    FROM users 
-                    WHERE admin_id = %s AND role = 'operator'
-                """, (admin_id,))
-                operators = cursor.fetchall()
-
-                return jsonify({"operators": operators}), 200
-
-        finally:
-            conn.close()
-
-    except Exception as e:
-        logger.error(f"Errore recupero operatori: {str(e)}")
-        return jsonify({"error": "Errore durante il recupero degli operatori"}), 500
-
-@app.route("/api/admin/clients/<int:admin_id>", methods=["GET"])
-def get_clients(admin_id):
-    """Lista clienti ottimizzata"""
-    try:
-        conn = get_db()
-        try:
-            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-                # Verifica admin
-                cursor.execute("SELECT id FROM users WHERE id = %s AND role = 'admin'", (admin_id,))
-                admin = cursor.fetchone()
-                if not admin:
-                    return jsonify({"error": "Non autorizzato"}), 403
-
-                cursor.execute("""
-                    SELECT id, username, email, phone 
-                    FROM users 
-                    WHERE admin_id = %s AND role = 'client'
-                """, (admin_id,))
-                clients = cursor.fetchall()
-
-                return jsonify({"clients": clients}), 200
-
-        finally:
-            conn.close()
-
-    except Exception as e:
-        logger.error(f"Errore recupero clienti: {str(e)}")
-        return jsonify({"error": "Errore durante il recupero dei clienti"}), 500
-
-@app.route("/api/admin/operators/add", methods=["POST"])
-def add_operator():
-    """Aggiunta operatore ottimizzata"""
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "Dati mancanti"}), 400
-
-        conn = get_db()
-        try:
-            with conn.cursor() as cursor:
-                # Verifica admin
-                cursor.execute("SELECT id FROM users WHERE id = %s AND role = 'admin'", 
-                             (data['admin_id'],))
-                if not cursor.fetchone():
-                    return jsonify({"error": "Non autorizzato"}), 403
-
-                # Verifica duplicati
-                cursor.execute("""
-                    SELECT username FROM users 
-                    WHERE username = %s OR email = %s
-                """, (data['username'], data['email']))
-                if cursor.fetchone():
-                    return jsonify({"error": "Username o email già esistenti"}), 400
-
-                # Creazione operatore
-                hashed = generate_password_hash(data['password'], method="scrypt")
-                cursor.execute("""
-                    INSERT INTO users (username, password_hash, email, phone, role, 
-                                    admin_id, specialization) 
-                    VALUES (%s, %s, %s, %s, 'operator', %s, %s)
-                """, (
-                    data['username'],
-                    hashed,
-                    data['email'],
-                    data.get('phone', ''),
-                    data['admin_id'],
-                    data.get('specialization', '')
-                ))
-                conn.commit()
-
-                return jsonify({"message": "Operatore creato con successo"}), 200
-
-        finally:
-            conn.close()
-
-    except Exception as e:
-        logger.error(f"Errore creazione operatore: {str(e)}")
-        return jsonify({"error": "Errore durante la creazione dell'operatore"}), 500
-
-@app.route("/api/admin/appointments", methods=["POST"])
-def add_appointment():
-    """Creazione appuntamento ottimizzata"""
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "Dati mancanti"}), 400
-
-        conn = get_db()
-        try:
-            with conn.cursor() as cursor:
-                # Verifica esistenza utenti
-                cursor.execute("""
-                    SELECT id, phone FROM users 
-                    WHERE id IN (%s, %s)
-                """, (data['operator_id'], data['client_id']))
-                users = cursor.fetchall()
-
-                if len(users) != 2:
-                    return jsonify({"error": "Operatore o cliente non valido"}), 400
-
-                # Creazione appuntamento
-                cursor.execute("""
-                    INSERT INTO appointments (operator_id, client_id, start_time, 
-                                           end_time, service_type, created_at)
-                    VALUES (%s, %s, %s, %s, %s, NOW())
-                """, (
-                    data['operator_id'],
-                    data['client_id'],
-                    data['start_time'],
-                    data['end_time'],
-                    data.get('service_type', '')
-                ))
-                conn.commit()
-
-                # Notifica WhatsApp (simulata)
-                client_phone = next((row[1] for row in users if row[0] == data['client_id']), None)
-                if client_phone:
-                    logger.info(f"[FAKE] Invio WhatsApp a {client_phone}: Nuovo appuntamento creato per il {data['start_time']}")
-
-                return jsonify({"message": "Appuntamento creato con successo"}), 200
-
-        finally:
-            conn.close()
-
-    except Exception as e:
-        logger.error(f"Errore creazione appuntamento: {str(e)}")
-        return jsonify({"error": "Errore durante la creazione dell'appuntamento"}), 500
-
-@app.route("/api/admin/appointments/<int:appointment_id>", methods=["PUT", "DELETE"])
-def manage_appointment_by_id(appointment_id):
-    """Gestione appuntamento ottimizzata"""
-    try:
-        conn = get_db()
-        try:
-            with conn.cursor() as cursor:
-                # Verifica esistenza appuntamento
-                cursor.execute("SELECT id FROM appointments WHERE id = %s", (appointment_id,))
-                if not cursor.fetchone():
-                    return jsonify({"error": "Appuntamento non trovato"}), 404
-
-                if request.method == "DELETE":
-                    cursor.execute("DELETE FROM appointments WHERE id = %s", (appointment_id,))
-                    conn.commit()
-                    return jsonify({"message": "Appuntamento eliminato"}), 200
-
-                data = request.get_json()
-                updates = []
-                params = []
-
-                if 'start_time' in data:
-                    updates.append("start_time = %s")
-                    params.append(data['start_time'])
-                if 'end_time' in data:
-                    updates.append("end_time = %s")
-                    params.append(data['end_time'])
-                if 'service_type' in data:
-                    updates.append("service_type = %s")
-                    params.append(data['service_type'])
-                if 'status' in data:
-                    updates.append("status = %s")
-                    params.append(data['status'])
-
-                if updates:
-                    query = f"UPDATE appointments SET {', '.join(updates)} WHERE id = %s"
-                    params.append(appointment_id)
-                    cursor.execute(query, tuple(params))
-                    conn.commit()
-
-                return jsonify({"message": "Appuntamento aggiornato"}), 200
-
-        finally:
-            conn.close()
-
-    except Exception as e:
-        logger.error(f"Errore gestione appuntamento: {str(e)}")
-        return jsonify({"error": "Errore durante la gestione dell'appuntamento"}), 500
-
-@app.route("/api/admin/send-reminders", methods=["POST"])
-def send_reminders():
-    """Invio reminder ottimizzato"""
-    try:
-        tomorrow = datetime.now() + timedelta(days=1)
-        start_tomorrow = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_tomorrow = tomorrow.replace(hour=23, minute=59, second=59, microsecond=999999)
-
-        conn = get_db()
-        try:
-            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-                cursor.execute("""
-                    SELECT a.start_time, u.phone
-                    FROM appointments a
-                    JOIN users u ON a.client_id = u.id
-                    WHERE a.start_time BETWEEN %s AND %s
-                    AND u.phone IS NOT NULL
-                """, (start_tomorrow, end_tomorrow))
-                appointments = cursor.fetchall()
-
-                for appt in appointments:
-                    logger.info(f"[FAKE] Invio reminder WhatsApp a {appt['phone']}: Appuntamento domani alle {appt['start_time'].strftime('%H:%M')}")
-
-                return jsonify({"message": "Notifiche inviate"}), 200
-
-        finally:
-            conn.close()
-
-    except Exception as e:
-        logger.error(f"Errore invio reminder: {str(e)}")
-        return jsonify({"error": "Errore durante l'invio dei reminder"}), 500
-
-@app.route("/api/admin/slots/pending", methods=["GET"])
-def get_pending_slots():
-    """Lista slot pending ottimizzata"""
-    try:
-        conn = get_db()
-        try:
-            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-                cursor.execute("""
-                    SELECT id, operator_id, client_id, day_of_week, 
-                           start_time, end_time, status
-                    FROM slots 
-                    WHERE status = 'pending'
-                """)
-                slots = cursor.fetchall()
-
-                return jsonify({
-                    "slots": [{
-                        **slot,
-                        "start_time": slot['start_time'].strftime("%H:%M"),
-                        "end_time": slot['end_time'].strftime("%H:%M")
-                    } for slot in slots]
-                }), 200
-
-        finally:
-            conn.close()
-
-    except Exception as e:
-        logger.error(f"Errore recupero slot pending: {str(e)}")
-        return jsonify({"error": "Errore durante il recupero degli slot pending"}), 500
-
-@app.route("/api/admin/slots/<int:slot_id>/<string:action>", methods=["PUT"])
-def manage_slot(slot_id, action):
-    """Gestione slot ottimizzata"""
-    if action not in ['approve', 'reject']:
-        return jsonify({"error": "Azione non valida"}), 400
-
-    try:
-        conn = get_db()
-        try:
-            with conn.cursor() as cursor:
-                cursor.execute("""
-                    UPDATE slots 
-                    SET status = %s 
-                    WHERE id = %s AND status = 'pending'
-                """, ('approved' if action == 'approve' else 'rejected', slot_id))
-                conn.commit()
-
-                if cursor.rowcount == 0:
-                    return jsonify({"error": "Slot non trovato o non in stato pending"}), 404
-
-                return jsonify({"message": f"Slot {action}d con successo"}), 200
-
-        finally:
-            conn.close()
-
-    except Exception as e:
-        logger.error(f"Errore gestione slot: {str(e)}")
-        return jsonify({"error": f"Errore durante {action} dello slot"}), 500
-
-@app.route("/api/client/slots/request", methods=["POST"])
-def request_slot():
-    """Richiesta slot ottimizzata"""
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "Dati mancanti"}), 400
-
-        conn = get_db()
-        try:
-            with conn.cursor() as cursor:
-                # Verifica esistenza utenti
-                cursor.execute("""
-                    SELECT id FROM users 
-                    WHERE id IN (%s, %s)
-                """, (data['client_id'], data['operator_id']))
-                if len(cursor.fetchall()) != 2:
-                    return jsonify({"error": "Client o operator non valido"}), 400
-
-                # Creazione slot
-                cursor.execute("""
-                    INSERT INTO slots (operator_id, client_id, day_of_week, 
-                                    start_time, end_time, status, is_active)
-                    VALUES (%s, %s, %s, %s, %s, 'pending', TRUE)
-                """, (
-                    data['operator_id'],
-                    data['client_id'],
-                    int(data['day_of_week']),
-                    data['start_time'],
-                    data['end_time']
-                ))
-                conn.commit()
-
-                return jsonify({"message": "Richiesta slot inviata"}), 201
-
-        finally:
-            conn.close()
-
-    except Exception as e:
-        logger.error(f"Errore richiesta slot: {str(e)}")
-        return jsonify({"error": "Errore durante la richiesta dello slot"}), 500
-
-if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+                return; // interrompe la funzione in caso di errore
+            }
+            const opData = await opRes.json();
+            const clData = await clRes.json();
+
+            setOperatori(opData.operators || []);
+            setClienti(clData.clients || []);
+
+
+        } catch (err) {
+            console.error("fetchOperatorsAndClients error:", err);
+            setError("Errore di rete");
+        }
+    }
+
+    async function fetchPendingSlots() {
+        setError("");
+         try {
+            const res = await fetch(`${API_URL}/admin/slots/pending`, fetchConfig);
+            if (!res.ok) {
+                if (res.type === 'opaque' || (res.status === 0 && !res.ok)) {
+                     setError("Errore di rete o CORS durante caricamento slot pendenti. Verifica la connessione al backend.");
+                } else {
+                    let errorData = {};
+                     try {
+                        errorData = await res.json()
+                      } catch (jsonError) {
+                          setError("Errore durante il caricamento slot pendenti")
+                          return;
+                      }
+                   setError(errorData.error || "Errore caricamento slot pendenti");
+                }
+                 return; // interrompe la funzione in caso di errore
+            }
+
+             const data = await res.json();
+            setPendingSlots(data.slots || []);
+        } catch (err) {
+            console.error("fetchPendingSlots error:", err);
+            setError("Errore di rete");
+        }
+    }
+
+    async function handleApproveSlot(slotId) {
+         setError("");
+         setSuccess("");
+         try {
+            const res = await fetch(`${API_URL}/admin/slots/${slotId}/approve`, {
+                ...fetchConfig,
+                method: "PUT",
+            });
+            if (!res.ok) {
+                if (res.type === 'opaque' || (res.status === 0 && !res.ok)) {
+                     setError("Errore di rete o CORS durante approvazione slot. Verifica la connessione al backend.");
+                 } else {
+                    let errorData = {};
+                      try {
+                         errorData = await res.json();
+                      } catch (jsonError) {
+                         setError("Errore durante approvazione slot")
+                          return;
+                     }
+                    setError(errorData.error || "Errore approvazione slot");
+                 }
+                  return; // interrompe la funzione in caso di errore
+            }
+            const data = await res.json();
+            setSuccess("Slot approvato con successo!");
+            fetchPendingSlots();
+            fetchCalendarData();
+        } catch (err) {
+            console.error("handleApproveSlot error:", err);
+            setError("Errore di rete");
+        }
+    }
+
+    async function handleRejectSlot(slotId) {
+        setError("");
+        setSuccess("");
+         try {
+            const res = await fetch(`${API_URL}/admin/slots/${slotId}/reject`, {
+                 ...fetchConfig,
+                method: "PUT",
+            });
+            if (!res.ok) {
+                 if (res.type === 'opaque' || (res.status === 0 && !res.ok)) {
+                   setError("Errore di rete o CORS durante rifiuto slot. Verifica la connessione al backend.");
+                 } else {
+                    let errorData = {};
+                    try {
+                      errorData = await res.json();
+                    } catch (jsonError) {
+                        setError("Errore durante rifiuto slot")
+                          return;
+                    }
+                   setError(errorData.error || "Errore rifiuto slot");
+                 }
+                  return; // interrompe la funzione in caso di errore
+            }
+
+            const data = await res.json();
+            setSuccess("Slot rifiutato");
+            fetchPendingSlots();
+            fetchCalendarData();
+        } catch (err) {
+            console.error("handleRejectSlot error:", err);
+            setError("Errore di rete");
+        }
+    }
+
+    async function handleAddOperator(e) {
+         e.preventDefault();
+        setError("");
+        setSuccess("");
+        const adminId = getAdminIdForUser(user);
+        if (!adminId) return;
+         try {
+            const res = await fetch(`${API_URL}/admin/operators/add`, {
+                 ...fetchConfig,
+                 method: "POST",
+                 body: JSON.stringify({ admin_id: adminId, ...newOperator }),
+            });
+           if (!res.ok) {
+                if (res.type === 'opaque' || (res.status === 0 && !res.ok)) {
+                   setError("Errore di rete o CORS durante creazione operatore. Verifica la connessione al backend.");
+                 } else {
+                    let errorData = {};
+                     try {
+                        errorData = await res.json()
+                     } catch (jsonError) {
+                         setError("Errore durante la creazione dell'operatore")
+                         return;
+                     }
+                   setError(errorData.error || "Errore creazione operatore");
+                 }
+                return; // interrompe la funzione in caso di errore
+           }
+
+            const data = await res.json();
+
+            setSuccess("Operatore creato con successo!");
+            setNewOperator({
+                username: "",
+                email: "",
+                password: "",
+                phone: "",
+                specialization: "",
+            });
+            fetchOperatorsAndClients();
+        } catch (err) {
+            console.error("handleAddOperator error:", err);
+            setError("Errore di rete");
+        }
+    }
+
+     async function handleAddClient(e) {
+        e.preventDefault();
+        setError("");
+        setSuccess("");
+        const adminId = getAdminIdForUser(user);
+        if (!adminId) return;
+        try {
+            const res = await fetch(`${API_URL}/auth/register`, {
+                ...fetchConfig,
+                method: "POST",
+                body: JSON.stringify({
+                    ...newClient,
+                    role: "client",
+                    admin_id: adminId,
+                }),
+            });
+
+            if (!res.ok) {
+                if (res.type === 'opaque' || (res.status === 0 && !res.ok)) {
+                    setError("Errore di rete o CORS durante creazione cliente. Verifica la connessione al backend.");
+                 } else {
+                     let errorData = {};
+                       try {
+                          errorData = await res.json()
+                        } catch (jsonError) {
+                          setError("Errore durante la creazione del cliente")
+                           return;
+                         }
+                    setError(errorData.error || "Errore creazione cliente");
+                }
+                return; // interrompe la funzione in caso di errore
+            }
+            const data = await res.json();
+
+            setSuccess("Cliente creato con successo!");
+            setNewClient({ username: "", email: "", password: "", phone: "" });
+            fetchOperatorsAndClients();
+        } catch (err) {
+            console.error("handleAddClient error:", err);
+            setError("Errore di rete");
+        }
+    }
+
+
+    async function handleAddAppointment(formData) {
+         setError("");
+         setSuccess("");
+         try {
+             const res = await fetch(`${API_URL}/admin/appointments`, {
+                 ...fetchConfig,
+                method: "POST",
+                 body: JSON.stringify(formData),
+             });
+             if (!res.ok) {
+                 if (res.type === 'opaque' || (res.status === 0 && !res.ok)) {
+                      setError("Errore di rete o CORS durante creazione appuntamento. Verifica la connessione al backend.");
+                 } else {
+                     let errorData = {};
+                       try {
+                            errorData = await res.json()
+                        } catch (jsonError) {
+                           setError("Errore durante la creazione dell'appuntamento");
+                            return;
+                        }
+                     setError(errorData.error || "Errore creazione appuntamento");
+                 }
+                  return; // interrompe la funzione in caso di errore
+             }
+             const data = await res.json();
+             setSuccess("Appuntamento creato con successo!");
+             fetchCalendarData();
+         } catch (err) {
+            console.error("handleAddAppointment error:", err);
+            setError("Errore di rete");
+         }
+    }
+
+    async function handleSaveAppointment(formData) {
+         setError("");
+         setSuccess("");
+         try {
+             const { id, ...updates } = formData;
+             updates.start_time = moment(updates.start_time).toISOString();
+             updates.end_time = moment(updates.end_time).toISOString();
+             const res = await fetch(`${API_URL}/admin/appointments/${id}`, {
+                ...fetchConfig,
+                method: "PUT",
+                 body: JSON.stringify(updates),
+             });
+            if (!res.ok) {
+                if (res.type === 'opaque' || (res.status === 0 && !res.ok)) {
+                    setError("Errore di rete o CORS durante aggiornamento appuntamento. Verifica la connessione al backend.");
+                } else {
+                    let errorData = {};
+                      try {
+                         errorData = await res.json()
+                      } catch (jsonError) {
+                           setError("Errore durante l'aggiornamento dell'appuntamento")
+                            return;
+                     }
+                   setError(errorData.error || "Errore update appuntamento");
+                 }
+                  return; // interrompe la funzione in caso di errore
+            }
+
+            const data = await res.json();
+            setSuccess("Appuntamento aggiornato!");
+            fetchCalendarData();
+         } catch (err) {
+             console.error("handleSaveAppointment error:", err);
+             setError("Errore di rete");
+         }
+    }
+
+    async function handleDeleteAppointment(apptId) {
+        setError("");
+         setSuccess("");
+        try {
+            const res = await fetch(`${API_URL}/admin/appointments/${apptId}`, {
+                 ...fetchConfig,
+                method: "DELETE",
+            });
+
+            if (!res.ok) {
+                if (res.type === 'opaque' || (res.status === 0 && !res.ok)) {
+                     setError("Errore di rete o CORS durante eliminazione appuntamento. Verifica la connessione al backend.");
+                 } else {
+                      let errorData = {};
+                        try {
+                          errorData = await res.json();
+                       } catch (jsonError) {
+                           setError("Errore durante l'eliminazione dell'appuntamento");
+                            return;
+                        }
+
+                   setError(errorData.error || "Errore eliminazione appuntamento");
+                 }
+                return; // interrompe la funzione in caso di errore
+            }
+
+             const data = await res.json();
+
+             setSuccess("Appuntamento eliminato!");
+             fetchCalendarData();
+        } catch (err) {
+            console.error("handleDeleteAppointment error:", err);
+            setError("Errore di rete");
+        }
+    }
+
+    async function handleWhatsAppReminders() {
+       setError("");
+       setSuccess("");
+        try {
+            const res = await fetch(`${API_URL}/admin/send-reminders`, {
+                 ...fetchConfig,
+                method: "POST",
+            });
+            if (!res.ok) {
+                 if (res.type === 'opaque' || (res.status === 0 && !res.ok)) {
+                     setError("Errore di rete o CORS durante invio notifiche. Verifica la connessione al backend.");
+                 } else {
+                      let errorData = {};
+                      try {
+                        errorData = await res.json();
+                      } catch (jsonError) {
+                         setError("Errore durante l'invio delle notifiche")
+                           return;
+                     }
+
+                     setError(data.error || "Errore invio notifiche");
+                 }
+                 return; // interrompe la funzione in caso di errore
+             }
+
+             const data = await res.json();
+             setSuccess("Notifiche WhatsApp inviate con successo!");
+        } catch (err) {
+             console.error("handleWhatsAppReminders error:", err);
+             setError("Errore di rete");
+        }
+    }
+
+    /*******************************************
+     * FUNZIONI: Calendario
+     *******************************************/
+    async function fetchCalendarData() {
+         if (!user?.id) return;
+        try {
+             const res = await fetch(`${API_URL}/calendar/${user.id}`, fetchConfig);
+            if (!res.ok) {
+                 if (res.type === 'opaque' || (res.status === 0 && !res.ok)) {
+                   setError("Errore di rete o CORS durante caricamento calendario. Verifica la connessione al backend.");
+                 } else {
+                   let errorData = {};
+                     try{
+                        errorData = await res.json()
+                     } catch (jsonError) {
+                           setError("Errore durante il caricamento del calendario")
+                          return;
+                     }
+                   setError(errorData.error || "Errore caricamento calendario");
+                 }
+                  return; // interrompe la funzione in caso di errore
+            }
+            const data = await res.json();
+             // Mappa i campi start_time ed end_time in oggetti Date
+            const mapped = data.events.map((ev) => ({
+                ...ev,
+                start: new Date(ev.start_time),
+                end: new Date(ev.end_time),
+                isSlot: ev.type === "slot",
+                slotStatus: ev.status,
+            }));
+            setCalendarEvents(mapped);
+
+             // Se admin, estrai gli appuntamenti per pannello statistiche
+            if (user.role === "admin") {
+                const apps = mapped
+                    .filter((m) => !m.isSlot)
+                    .map((a) => ({
+                        id: a.id,
+                        operator_id: a.operator_id,
+                        client_id: a.client_id,
+                        start_time: a.start,
+                        end_time: a.end,
+                        service_type: a.service_type,
+                        status: a.status,
+                    }));
+                 setAppuntamenti(apps);
+             }
+         } catch (err) {
+            console.error("fetchCalendarData error:", err);
+            setError("Errore di rete");
+        }
+    }
+
+    /*******************************************
+     * FUNZIONI: Client - crea richiesta slot
+     *******************************************/
+    async function handleRequestSlot(e) {
+         e.preventDefault();
+         setError("");
+         setSuccess("");
+         if (!user?.id) return;
+         try {
+             const res = await fetch(`${API_URL}/client/slots/request`, {
+                 ...fetchConfig,
+                 method: "POST",
+                 body: JSON.stringify({
+                     ...requestSlotData,
+                     client_id: user.id,
+                 }),
+             });
+            if (!res.ok) {
+                if (res.type === 'opaque' || (res.status === 0 && !res.ok)) {
+                    setError("Errore di rete o CORS durante richiesta slot. Verifica la connessione al backend.");
+                 } else {
+                      let errorData = {};
+                       try {
+                            errorData = await res.json()
+                        } catch (jsonError) {
+                            setError("Errore durante l'invio della richiesta slot")
+                          return;
+                       }
+                    setError(errorData.error || "Errore invio richiesta slot");
+                 }
+                  return; // interrompe la funzione in caso di errore
+            }
+            const data = await res.json();
+
+             setSuccess("Richiesta slot inviata! Attendi approvazione dall'admin.");
+             setRequestSlotData({
+                 operator_id: "",
+                 day_of_week: "",
+                 start_time: "",
+                 end_time: "",
+             });
+         } catch (err) {
+            console.error("handleRequestSlot error:", err);
+            setError("Errore di rete");
+         }
+    }
+
+
+    /*******************************************
+     * RENDER: login, register, recover
+     *******************************************/
+    function renderLogin() {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+                <Card className="w-full max-w-md">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Lock className="h-4 w-4" />
+                            Login
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <form onSubmit={handleLogin} className="space-y-4">
+                            <div>
+                                <Label>Username</Label>
+                                <Input
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <Label>Password</Label>
+                                <Input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            {error && (
+                                <Alert variant="destructive">
+                                    <AlertDescription>{error}</AlertDescription>
+                                </Alert>
+                            )}
+                            {success && (
+                                <Alert>
+                                    <AlertDescription>{success}</AlertDescription>
+                                </Alert>
+                            )}
+                            <Button type="submit" className="w-full">
+                                Accedi
+                            </Button>
+                        </form>
+                        <div className="mt-4 text-center space-x-4">
+                            <Button variant="link" onClick={() => setView("recover")}>
+                                Recupera Password
+                            </Button>
+                            <Button variant="link" onClick={() => setView("register")}>
+                                Registrazione Admin
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
+    function renderRegister() {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+                <Card className="w-full max-w-md">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <UserPlus className="h-4 w-4" />
+                            Registrazione Admin
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <form onSubmit={handleRegister} className="space-y-4">
+                            <div>
+                                <Label>Username</Label>
+                                <Input
+                                    value={regData.username}
+                                    onChange={(e) =>
+                                        setRegData({ ...regData, username: e.target.value })
+                                    }
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <Label>Email</Label>
+                                <Input
+                                    type="email"
+                                    value={regData.email}
+                                    onChange={(e) =>
+                                        setRegData({ ...regData, email: e.target.value })
+                                    }
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <Label>Password</Label>
+                                <Input
+                                    type="password"
+                                    value={regData.password}
+                                    onChange={(e) =>
+                                        setRegData({ ...regData, password: e.target.value })
+                                    }
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <Label>Telefono</Label>
+                                <Input
+                                    value={regData.phone}
+                                    onChange={(e) =>
+                                        setRegData({ ...regData, phone: e.target.value })
+                                    }
+                                />
+                            </div>
+                            {error && (
+                                <Alert variant="destructive">
+                                    <AlertDescription>{error}</AlertDescription>
+                                </Alert>
+                            )}
+                            {success && (
+                                <Alert>
+                                    <AlertDescription>{success}</AlertDescription>
+                                </Alert>
+                            )}
+                            <Button type="submit" className="w-full">
+                                Registrati
+                            </Button>
+                        </form>
+                        <div className="mt-4 text-center">
+                            <Button variant="link" onClick={() => setView("login")}>
+                                Torna al Login
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
+    function renderRecover() {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+                <Card className="w-full max-w-md">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Mail className="h-4 w-4" />
+                            Recupero Password
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <form onSubmit={handleRecover} className="space-y-4">
+                            <div>
+                                <Label>Email</Label>
+                                <Input
+                                    type="email"
+                                    value={recoverEmail}
+                                    onChange={(e) => setRecoverEmail(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            {error && (
+                                <Alert variant="destructive">
+                                    <AlertDescription>{error}</AlertDescription>
+                                </Alert>
+                            )}
+                            {success && (
+                                <Alert>
+                                    <AlertDescription>{success}</AlertDescription>
+                                </Alert>
+                            )}
+                            <Button type="submit" className="w-full">
+                                Invia Richiesta
+                            </Button>
+                        </form>
+                        <div className="mt-4 text-center">
+                            <Button variant="link" onClick={() => setView("login")}>
+                                Torna al Login
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
+    /*******************************************
+     * RENDER: ADMIN
+     *******************************************/
+    function renderAdmin() {
+        // Quando clicco su un evento nel calendario admin
+        function handleSelectAdminEvent(ev) {
+            if (!ev.isSlot) {
+                setSelectedAppointment(ev);
+                setIsEditApptOpen(true);
+            }
+        }
+
+        return (
+            <div className="p-4 md:p-6 max-w-7xl mx-auto">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                    <h1 className="text-3xl font-bold">Dashboard Admin</h1>
+                    <div className="space-x-2 flex flex-wrap">
+                        <Button onClick={handleWhatsAppReminders}>
+                            <Bell className="h-4 w-4 mr-2" />
+                            Invia Notifiche
+                        </Button>
+                        <Button variant="destructive" onClick={handleLogout}>
+                            <LogOut className="h-4 w-4 mr-2" />
+                            Logout
+                        </Button>
+                    </div>
+                </div>
+
+                                {/* Pannello statistiche */}
+                <AdminStatsPanel operatori={operatori} appuntamenti={appuntamenti} />
+
+                {/* Tabs */}
+                <Tabs defaultValue="operatori" className="mt-6">
+                    <TabsList>
+                        <TabsTrigger value="operatori">
+                            <Users className="h-4 w-4 mr-2" />
+                            Operatori
+                        </TabsTrigger>
+                        <TabsTrigger value="clienti">
+                            <UserPlus className="h-4 w-4 mr-2" />
+                            Clienti
+                        </TabsTrigger>
+                        <TabsTrigger value="appuntamenti">
+                            <CalendarIcon className="h-4 w-4 mr-2" />
+                            Appuntamenti
+                        </TabsTrigger>
+                        <TabsTrigger value="pendingSlots">
+                            <Clock className="h-4 w-4 mr-2" />
+                            Richieste Slot
+                        </TabsTrigger>
+                    </TabsList>
+
+                    {/* OPERATORI */}
+                    <TabsContent value="operatori">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Gestione Operatori</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <form onSubmit={handleAddOperator} className="space-y-4 mb-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <Label>Username</Label>
+                                            <Input
+                                                value={newOperator.username}
+                                                onChange={(e) =>
+                                                    setNewOperator({ ...newOperator, username: e.target.value })
+                                                }
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>Email</Label>
+                                            <Input
+                                                type="email"
+                                                value={newOperator.email}
+                                                onChange={(e) =>
+                                                    setNewOperator({ ...newOperator, email: e.target.value })
+                                                }
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>Password</Label>
+                                            <Input
+                                                type="password"
+                                                value={newOperator.password}
+                                                onChange={(e) =>
+                                                    setNewOperator({ ...newOperator, password: e.target.value })
+                                                }
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>Telefono</Label>
+                                            <Input
+                                                value={newOperator.phone}
+                                                onChange={(e) =>
+                                                    setNewOperator({ ...newOperator, phone: e.target.value })
+                                                }
+                                            />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <Label>Specializzazione</Label>
+                                            <Input
+                                                value={newOperator.specialization}
+                                                onChange={(e) =>
+                                                    setNewOperator({
+                                                        ...newOperator,
+                                                        specialization: e.target.value,
+                                                    })
+                                                }
+                                            />
+                                        </div>
+                                    </div>
+                                    <Button type="submit">Aggiungi Operatore</Button>
+                                </form>
+
+                                {/* Lista Operatori */}
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableCell>Username</TableCell>
+                                            <TableCell>Email</TableCell>
+                                            <TableCell>Telefono</TableCell>
+                                            <TableCell>Specializzazione</TableCell>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {operatori.map((op) => (
+                                            <TableRow key={op.id}>
+                                                <TableCell>{op.username}</TableCell>
+                                                <TableCell>{op.email}</TableCell>
+                                                <TableCell>{op.phone}</TableCell>
+                                                <TableCell>{op.specialization}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    {/* CLIENTI */}
+                    <TabsContent value="clienti">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Gestione Clienti</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <form onSubmit={handleAddClient} className="space-y-4 mb-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <Label>Username</Label>
+                                            <Input
+                                                value={newClient.username}
+                                                onChange={(e) =>
+                                                    setNewClient({ ...newClient, username: e.target.value })
+                                                }
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>Email</Label>
+                                            <Input
+                                                type="email"
+                                                value={newClient.email}
+                                                onChange={(e) =>
+                                                    setNewClient({ ...newClient, email: e.target.value })
+                                                }
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>Password</Label>
+                                            <Input
+                                                type="password"
+                                                value={newClient.password}
+                                                onChange={(e) =>
+                                                    setNewClient({ ...newClient, password: e.target.value })
+                                                }
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>Telefono</Label>
+                                            <Input
+                                                value={newClient.phone}
+                                                onChange={(e) =>
+                                                    setNewClient({ ...newClient, phone: e.target.value })
+                                                }
+                                            />
+                                        </div>
+                                    </div>
+                                    <Button type="submit">Aggiungi Cliente</Button>
+                                </form>
+
+                                {/* Lista Clienti */}
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableCell>Username</TableCell>
+                                            <TableCell>Email</TableCell>
+                                            <TableCell>Telefono</TableCell>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {clienti.map((c) => (
+                                            <TableRow key={c.id}>
+                                                <TableCell>{c.username}</TableCell>
+                                                <TableCell>{c.email}</TableCell>
+                                                <TableCell>{c.phone}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    {/* APPUNTAMENTI */}
+                    <TabsContent value="appuntamenti">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Calendario (Slot + Appuntamenti)</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="mb-4">
+                                    <Button onClick={() => setIsCreateApptOpen(true)}>
+                                        <CalendarIcon2 className="h-4 w-4 mr-2" />
+                                        Nuovo Appuntamento
+                                    </Button>
+                                </div>
+                                <Calendar
+                                    localizer={localizer}
+                                    events={calendarEvents}
+                                    startAccessor="start"
+                                    endAccessor="end"
+                                    view={adminCalendarView}
+                                    onView={(v) => setAdminCalendarView(v)}
+                                    views={["month", "week", "day"]}
+                                    date={adminCalendarDate}
+                                    onNavigate={(dateObj) => setAdminCalendarDate(dateObj)}
+                                    style={{ height: 600 }}
+                                    messages={{
+                                        next: "Successivo",
+                                        previous: "Precedente",
+                                        today: "Oggi",
+                                        month: "Mese",
+                                        week: "Settimana",
+                                        day: "Giorno",
+                                    }}
+                                    tooltipAccessor={(event) => {
+                                        if (event.isSlot) {
+                                            return `Slot ${event.slotStatus} (Operatore: ${event.operator_name})`;
+                                        }
+                                        return `Appuntamento con ${event.clientName}`;
+                                    }}
+                                    eventPropGetter={(event) => {
+                                        if (event.isSlot) {
+                                            if (event.slotStatus === "approved") {
+                                                return { style: { backgroundColor: "#F59E0B" } };
+                                            }
+                                            if (event.slotStatus === "pending") {
+                                                return { style: { backgroundColor: "#9CA3AF" } };
+                                            }
+                                            return { style: { backgroundColor: "#6B7280" } };
+                                        }
+                                        // Appuntamento
+                                        let bg = "#3B82F6";
+                                        if (event.status === "completed") bg = "#10B981";
+                                        else if (event.status === "cancelled") bg = "#EF4444";
+                                        return { style: { backgroundColor: bg } };
+                                    }}
+                                    onSelectEvent={handleSelectAdminEvent}
+                                />
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    {/* SLOT PENDING */}
+                    <TabsContent value="pendingSlots">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Richieste Slot (da Approvare)</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableCell>ID</TableCell>
+                                            <TableCell>Operatore</TableCell>
+                                            <TableCell>Giorno</TableCell>
+                                            <TableCell>Orario</TableCell>
+                                            <TableCell>Cliente</TableCell>
+                                            <TableCell>Azioni</TableCell>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {pendingSlots.map((slot) => (
+                                            <TableRow key={slot.id}>
+                                                <TableCell>{slot.id}</TableCell>
+                                                <TableCell>{slot.operator_id}</TableCell>
+                                                <TableCell>{slot.day_of_week}</TableCell>
+                                                <TableCell>
+                                                    {slot.start_time} - {slot.end_time}
+                                                </TableCell>
+                                                <TableCell>{slot.client_id}</TableCell>
+                                                <TableCell>
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={() => handleApproveSlot(slot.id)}
+                                                        className="mr-2"
+                                                    >
+                                                        Approva
+                                                    </Button>
+                                                    <Button
+                                                        variant="destructive"
+                                                        size="sm"
+                                                        onClick={() => handleRejectSlot(slot.id)}
+                                                    >
+                                                        Rifiuta
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                </Tabs>
+
+                 {/* Modali Appuntamenti */}
+                <CreateAppointmentModal
+                    isOpen={isCreateApptOpen}
+                    onClose={() => setIsCreateApptOpen(false)}
+                    operatori={operatori}
+                    clienti={clienti}
+                    onAddAppointment={handleAddAppointment}
+                />
+                <EditAppointmentModal
+                    isOpen={isEditApptOpen}
+                    onClose={() => setIsEditApptOpen(false)}
+                    appointment={selectedAppointment}
+                    onSave={handleSaveAppointment}
+                    onDelete={handleDeleteAppointment}
+                />
+
+
+                {error && (
+                    <Alert variant="destructive" className="mt-4">
+                        <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                )}
+                {success && (
+                    <Alert className="mt-4">
+                        <AlertDescription>{success}</AlertDescription>
+                    </Alert>
+                )}
+            </div>
+        );
+    }
+
+    /*******************************************
+     * RENDER: OPERATOR
+     *******************************************/
+    function renderOperator() {
+        function handleSelectOperatorEvent(ev) {
+            // ...
+        }
+
+        return (
+            <div className="p-4 md:p-6 max-w-7xl mx-auto">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                    <h1 className="text-3xl font-bold">Dashboard Operatore</h1>
+                    <Button variant="destructive" onClick={handleLogout}>
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Logout
+                    </Button>
+                </div>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Calendario (Slot + Appuntamenti)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Calendar
+                            localizer={localizer}
+                            events={calendarEvents}
+                            startAccessor="start"
+                            endAccessor="end"
+                            view={operatorCalendarView}
+                            onView={(v) => setOperatorCalendarView(v)}
+                            views={["month", "week", "day"]}
+                            date={operatorCalendarDate}
+                            onNavigate={(dateObj) => setOperatorCalendarDate(dateObj)}
+                            style={{ height: 600 }}
+                            messages={{
+                                next: "Successivo",
+                                previous: "Precedente",
+                                today: "Oggi",
+                                month: "Mese",
+                                week: "Settimana",
+                                day: "Giorno",
+                            }}
+                             tooltipAccessor={(event) => {
+                                if (event.isSlot) {
+                                    return `Slot ${event.slotStatus} (Operatore: ${event.operator_name})`;
+                                }
+                                return `Appuntamento con ${event.clientName}`;
+                            }}
+                            eventPropGetter={(event) => {
+                                if (event.isSlot) {
+                                    if (event.slotStatus === "approved") {
+                                        return { style: { backgroundColor: "#F59E0B" } };
+                                    } else if (event.slotStatus === "pending") {
+                                        return { style: { backgroundColor: "#9CA3AF" } };
+                                    }
+                                    return { style: { backgroundColor: "#6B7280" } };
+                                }
+                                let bg = "#3B82F6";
+                                if (event.status === "completed") bg = "#10B981";
+                                else if (event.status === "cancelled") bg = "#EF4444";
+                                return { style: { backgroundColor: bg } };
+                            }}
+                            onSelectEvent={handleSelectOperatorEvent}
+                        />
+                    </CardContent>
+                </Card>
+
+                {error && (
+                    <Alert variant="destructive" className="mt-4">
+                        <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                )}
+                {success && (
+                    <Alert className="mt-4">
+                        <AlertDescription>{success}</AlertDescription>
+                    </Alert>
+                )}
+            </div>
+        );
+    }
+
+    /*******************************************
+     * RENDER: CLIENT
+     *******************************************/
+    function renderClient() {
+        function handleSelectClientEvent(ev) {
+            // se volevi "prenotare" uno slot, potresti gestire qui
+        }
+
+        return (
+            <div className="p-4 md:p-6 max-w-7xl mx-auto">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                    <h1 className="text-3xl font-bold">Dashboard Cliente</h1>
+                    <Button variant="destructive" onClick={handleLogout}>
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Logout
+                    </Button>
+                </div>
+
+                {/* Richiesta Slot */}
+                <Card className="mb-6">
+                    <CardHeader>
+                        <CardTitle>Crea Richiesta Slot</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <form onSubmit={handleRequestSlot} className="space-y-4">
+                            <div>
+                                <Label>Operatore</Label>
+                                <Select
+                                    onValueChange={(val) =>
+                                        setRequestSlotData({ ...requestSlotData, operator_id: val })
+                                    }
+                                    value={requestSlotData.operator_id}
+                                    required
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Seleziona Operatore" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {operatori.map((op) => (
+                                            <SelectItem key={op.id} value={op.id.toString()}>
+                                                {op.username}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label>Giorno (1=Lun,2=Mar,...,0=Dom)</Label>
+                                <Select
+                                    onValueChange={(val) =>
+                                        setRequestSlotData({ ...requestSlotData, day_of_week: val })
+                                    }
+                                    value={requestSlotData.day_of_week}
+                                    required
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Giorno" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="1">Lunedì</SelectItem>
+                                        <SelectItem value="2">Martedì</SelectItem>
+                                        <SelectItem value="3">Mercoledì</SelectItem>
+                                        <SelectItem value="4">Giovedì</SelectItem>
+                                        <SelectItem value="5">Venerdì</SelectItem>
+                                        <SelectItem value="6">Sabato</SelectItem>
+                                        <SelectItem value="0">Domenica</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label>Ora Inizio</Label>
+                                <Input
+                                    type="time"
+                                    value={requestSlotData.start_time}
+                                    onChange={(e) =>
+                                        setRequestSlotData({
+                                            ...requestSlotData,
+                                            start_time: e.target.value,
+                                        })
+                                    }
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <Label>Ora Fine</Label>
+                                <Input
+                                    type="time"
+                                    value={requestSlotData.end_time}
+                                    onChange={(e) =>
+                                        setRequestSlotData({
+                                            ...requestSlotData,
+                                            end_time: e.target.value,
+                                        })
+                                    }
+                                    required
+                                />
+                            </div>
+                            <Button type="submit">
+                                <PlusCircle className="h-4 w-4 mr-2" />
+                                Invia Richiesta Slot
+                            </Button>
+                        </form>
+                    </CardContent>
+                </Card>
+
+                {/* Calendario */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Calendario (Slot + Appuntamenti)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Calendar
+                            localizer={localizer}
+                            events={calendarEvents}
+                            startAccessor="start"
+                            endAccessor="end"
+                            view={clientCalendarView}
+                            onView={(v) => setClientCalendarView(v)}
+                            views={["month", "week", "day"]}
+                            date={clientCalendarDate}
+                            onNavigate={(d) => setClientCalendarDate(d)}
+                            style={{ height: 600 }}
+                            messages={{
+                                next: "Successivo",
+                                previous: "Precedente",
+                                today: "Oggi",
+                                month: "Mese",
+                                week: "Settimana",
+                                day: "Giorno",
+                            }}
+                             tooltipAccessor={(event) => {
+                                if (event.isSlot) {
+                                    return `Slot ${event.slotStatus} (Operatore: ${event.operator_name})`;
+                                }
+                                return `Appuntamento con Operatore: ${event.operatorName}`;
+                            }}
+                            eventPropGetter={(event) => {
+                                if (event.isSlot) {
+                                    if (event.slotStatus === "approved") {
+                                        return { style: { backgroundColor: "#F59E0B" } };
+                                    } else if (event.slotStatus === "pending") {
+                                        return { style: { backgroundColor: "#9CA3AF" } };
+                                    }
+                                    return { style: { backgroundColor: "#6B7280" } };
+                                }
+                                let bg = "#3B82F6";
+                                if (event.status === "completed") bg = "#10B981";
+                                else if (event.status === "cancelled") bg = "#EF4444";
+                                return { style: { backgroundColor: bg } };
+                            }}
+                            onSelectEvent={handleSelectClientEvent}
+                        />
+                    </CardContent>
+                </Card>
+
+                {error && (
+                    <Alert variant="destructive" className="mt-4">
+                        <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                )}
+                {success && (
+                    <Alert className="mt-4">
+                        <AlertDescription>{success}</AlertDescription>
+                    </Alert>
+                )}
+            </div>
+        );
+    }
+
+    /*******************************************
+     * RENDER PRINCIPALE
+     *******************************************/
+    if (view === "login") return renderLogin();
+    if (view === "register") return renderRegister();
+    if (view === "recover") return renderRecover();
+
+    if (user?.role === "admin") return renderAdmin();
+    if (user?.role === "operator") return renderOperator();
+    if (user?.role === "client") return renderClient();
+
+    return null;
+};
+
+export default Dashboard;

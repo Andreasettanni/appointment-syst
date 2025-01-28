@@ -26,17 +26,18 @@ DB_CONFIG = {
 # Configurazione CORS
 CORS(
     app,
-    resources={r"/*": {"origins": [
+    resources={r"/api/*": {"origins": [
         "http://localhost:3000",
         "https://clientappo.vercel.app",
         "https://appointment-syst.vercel.app",
         "https://clientappo-nadesud1b-andreasettannis-projects.vercel.app",
         "https://clientappo-r3ghpgiu1-andreasettannis-projects.vercel.app",
+         "https://clientappo-kynnn0qs7-andreasettannis-projects.vercel.app",
         "https://appo-liard.vercel.app",
         "https://appo-wjc5-h09acpeed-andreasettannis-projects.vercel.app",
         "https://mioalias.vercel.app"
     ]}},
-    supports_credentials=True,
+     supports_credentials=True,
     expose_headers=["Access-Control-Allow-Origin"],
     allow_headers=["Content-Type", "Authorization"],
     max_age=600
@@ -53,42 +54,50 @@ def get_db():
         logger.error(f"Errore connessione database: {str(e)}")
         raise
 
+# Gestione OPTIONS per tutte le route /api/...
+@app.route("/api/auth/register", methods=["OPTIONS"])
+@app.route("/api/auth/login", methods=["OPTIONS"])
+@app.route("/api/calendar/<int:user_id>", methods=["OPTIONS"])
+@app.route("/api/admin/operators/<int:admin_id>", methods=["OPTIONS"])
+@app.route("/api/admin/clients/<int:admin_id>", methods=["OPTIONS"])
+@app.route("/api/admin/operators/add", methods=["OPTIONS"])
+@app.route("/api/admin/appointments", methods=["OPTIONS"])
+@app.route("/api/admin/appointments/<int:appointment_id>", methods=["OPTIONS"])
+@app.route("/api/admin/send-reminders", methods=["OPTIONS"])
+@app.route("/api/admin/slots/pending", methods=["OPTIONS"])
+@app.route("/api/admin/slots/<int:slot_id>/<string:action>", methods=["OPTIONS"])
+@app.route("/api/client/slots/request", methods=["OPTIONS"])
+def handle_preflight():
+    response = jsonify({"message": "OK"})
+    return response
+
 @app.after_request
 def add_cors_headers(response):
     """Aggiunge gli header CORS necessari"""
     origin = request.headers.get("Origin")
     allowed_origins = [
-        "http://localhost:3000",
+         "http://localhost:3000",
         "https://clientappo.vercel.app",
         "https://appointment-syst.vercel.app",
         "https://clientappo-nadesud1b-andreasettannis-projects.vercel.app",
         "https://clientappo-r3ghpgiu1-andreasettannis-projects.vercel.app",
+        "https://clientappo-kynnn0qs7-andreasettannis-projects.vercel.app",
         "https://appo-liard.vercel.app",
         "https://appo-wjc5-h09acpeed-andreasettannis-projects.vercel.app",
         "https://mioalias.vercel.app"
     ]
     
     if origin in allowed_origins:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+         response.headers["Access-Control-Allow-Origin"] = origin
+         response.headers["Access-Control-Allow-Credentials"] = "true"
+         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+         response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     
     logger.info(f"CORS headers aggiunti per {request.method} a {request.url}")
-    return response
-
-# Gestione OPTIONS per tutte le route
-@app.route("/api/auth/register", methods=["OPTIONS"])
-@app.route("/api/auth/login", methods=["OPTIONS"])
-@app.route("/api/calendar/<int:user_id>", methods=["OPTIONS"])
-@app.route("/api/admin/operators/<int:admin_id>", methods=["OPTIONS"])
-@app.route("/api/admin/clients/<int:admin_id>", methods=["OPTIONS"])
-def handle_preflight():
-    response = jsonify({"message": "OK"})
     return response
 
 @app.route("/")
@@ -219,9 +228,6 @@ def login():
         logger.error(f"Errore login: {str(e)}")
         return jsonify({"error": "Errore durante il login"}), 500
 
-[... continuo con il resto del backend nella prossima parte ...]
-
-# ... continua dal codice precedente ...
 
 @app.route("/api/calendar/<int:user_id>", methods=["GET"])
 def get_calendar_data(user_id):
@@ -412,202 +418,6 @@ def add_operator():
     except Exception as e:
         logger.error(f"Errore creazione operatore: {str(e)}")
         return jsonify({"error": "Errore durante la creazione dell'operatore"}), 500
-
-[... continuo con il resto delle route nella prossima parte ...]
-
-# ... continua dal codice precedente ...
-
-@app.route("/api/calendar/<int:user_id>", methods=["GET"])
-def get_calendar_data(user_id):
-    """Calendario ottimizzato con query dirette"""
-    logger.info(f"Richiesta calendario per user_id: {user_id}")
-    try:
-        conn = get_db()
-        try:
-            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-                # Ottieni ruolo utente
-                cursor.execute("SELECT role FROM users WHERE id = %s", (user_id,))
-                user = cursor.fetchone()
-                if not user:
-                    return jsonify({"error": "Utente non trovato"}), 404
-
-                # Query ottimizzate per slot e appuntamenti
-                if user['role'] == "admin":
-                    cursor.execute("SELECT * FROM slots")
-                    slots = cursor.fetchall()
-                    cursor.execute("SELECT * FROM appointments")
-                    appointments = cursor.fetchall()
-                elif user['role'] == "operator":
-                    cursor.execute("SELECT * FROM slots WHERE operator_id = %s", (user_id,))
-                    slots = cursor.fetchall()
-                    cursor.execute("SELECT * FROM appointments WHERE operator_id = %s", (user_id,))
-                    appointments = cursor.fetchall()
-                else:  # client
-                    cursor.execute("SELECT * FROM slots WHERE status = 'approved'")
-                    slots = cursor.fetchall()
-                    cursor.execute("SELECT * FROM appointments WHERE client_id = %s", (user_id,))
-                    appointments = cursor.fetchall()
-
-                # Converti in eventi
-                events = []
-                now = datetime.now()
-
-                # Processa slot
-                for slot in slots:
-                    cursor.execute("SELECT username FROM users WHERE id = %s", (slot['operator_id'],))
-                    operator = cursor.fetchone()
-                    
-                    diff = slot['day_of_week'] - now.weekday()
-                    if diff < 0:
-                        diff += 7
-                    base_date = now.date() + timedelta(days=diff)
-                    start_dt = datetime.combine(base_date, slot['start_time'])
-                    end_dt = datetime.combine(base_date, slot['end_time'])
-
-                    events.append({
-                        "type": "slot",
-                        "id": f"slot-{slot['id']}",
-                        "slot_id": slot['id'],
-                        "operator_id": slot['operator_id'],
-                        "operator_name": operator['username'] if operator else "???",
-                        "start_time": start_dt.isoformat(),
-                        "end_time": end_dt.isoformat(),
-                        "status": slot['status']
-                    })
-
-                # Processa appuntamenti
-                for appt in appointments:
-                    cursor.execute("SELECT username FROM users WHERE id IN (%s, %s)", 
-                                 (appt['client_id'], appt['operator_id']))
-                    users = cursor.fetchall()
-                    client = next((u for u in users if u['username']), {"username": "???"})
-                    operator = next((u for u in users if u['username']), {"username": "???"})
-
-                    events.append({
-                        "type": "appointment",
-                        "id": appt['id'],
-                        "client_id": appt['client_id'],
-                        "operator_id": appt['operator_id'],
-                        "clientName": client['username'],
-                        "operatorName": operator['username'],
-                        "start_time": appt['start_time'].isoformat(),
-                        "end_time": appt['end_time'].isoformat(),
-                        "service_type": appt['service_type'],
-                        "status": appt['status']
-                    })
-
-                return jsonify({"events": events}), 200
-
-        finally:
-            conn.close()
-
-    except Exception as e:
-        logger.error(f"Errore calendario: {str(e)}")
-        return jsonify({"error": "Errore durante il recupero del calendario"}), 500
-
-@app.route("/api/admin/operators/<int:admin_id>", methods=["GET"])
-def get_operators(admin_id):
-    """Lista operatori ottimizzata"""
-    try:
-        conn = get_db()
-        try:
-            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-                cursor.execute("""
-                    SELECT id, username, email, phone, specialization 
-                    FROM users 
-                    WHERE admin_id = %s AND role = 'operator'
-                """, (admin_id,))
-                operators = cursor.fetchall()
-
-                return jsonify({"operators": operators}), 200
-
-        finally:
-            conn.close()
-
-    except Exception as e:
-        logger.error(f"Errore recupero operatori: {str(e)}")
-        return jsonify({"error": "Errore durante il recupero degli operatori"}), 500
-
-@app.route("/api/admin/clients/<int:admin_id>", methods=["GET"])
-def get_clients(admin_id):
-    """Lista clienti ottimizzata"""
-    try:
-        conn = get_db()
-        try:
-            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-                # Verifica admin
-                cursor.execute("SELECT id FROM users WHERE id = %s AND role = 'admin'", (admin_id,))
-                admin = cursor.fetchone()
-                if not admin:
-                    return jsonify({"error": "Non autorizzato"}), 403
-
-                cursor.execute("""
-                    SELECT id, username, email, phone 
-                    FROM users 
-                    WHERE admin_id = %s AND role = 'client'
-                """, (admin_id,))
-                clients = cursor.fetchall()
-
-                return jsonify({"clients": clients}), 200
-
-        finally:
-            conn.close()
-
-    except Exception as e:
-        logger.error(f"Errore recupero clienti: {str(e)}")
-        return jsonify({"error": "Errore durante il recupero dei clienti"}), 500
-
-@app.route("/api/admin/operators/add", methods=["POST"])
-def add_operator():
-    """Aggiunta operatore ottimizzata"""
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "Dati mancanti"}), 400
-
-        conn = get_db()
-        try:
-            with conn.cursor() as cursor:
-                # Verifica admin
-                cursor.execute("SELECT id FROM users WHERE id = %s AND role = 'admin'", 
-                             (data['admin_id'],))
-                if not cursor.fetchone():
-                    return jsonify({"error": "Non autorizzato"}), 403
-
-                # Verifica duplicati
-                cursor.execute("""
-                    SELECT username FROM users 
-                    WHERE username = %s OR email = %s
-                """, (data['username'], data['email']))
-                if cursor.fetchone():
-                    return jsonify({"error": "Username o email già esistenti"}), 400
-
-                # Creazione operatore
-                hashed = generate_password_hash(data['password'], method="scrypt")
-                cursor.execute("""
-                    INSERT INTO users (username, password_hash, email, phone, role, 
-                                    admin_id, specialization) 
-                    VALUES (%s, %s, %s, %s, 'operator', %s, %s)
-                """, (
-                    data['username'],
-                    hashed,
-                    data['email'],
-                    data.get('phone', ''),
-                    data['admin_id'],
-                    data.get('specialization', '')
-                ))
-                conn.commit()
-
-                return jsonify({"message": "Operatore creato con successo"}), 200
-
-        finally:
-            conn.close()
-
-    except Exception as e:
-        logger.error(f"Errore creazione operatore: {str(e)}")
-        return jsonify({"error": "Errore durante la creazione dell'operatore"}), 500
-
-[... continuo con il resto delle route nella prossima parte ...]
 
 @app.route("/api/admin/appointments", methods=["POST"])
 def add_appointment():

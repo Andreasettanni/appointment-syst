@@ -6,37 +6,33 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import logging
 
-# Configura logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
 # =============================
-# C O R S  -  Configurazione
+#  C O R S   C O N F I G
 # =============================
-# Elenco dei domini da cui accettare richieste
+# Aggiungi qui i domini che usi davvero (senza slash finale).
 allowed_origins = [
     "http://localhost:3000",
     "https://clientappo.vercel.app",
-    "https://appointment-syst.vercel.app",
-    "https://clientappo-nadesud1b-andreasettannis-projects.vercel.app",
-    "https://clientappo-r3ghpgiu1-andreasettannis-projects.vercel.app",
-    "https://clientappo-g97v8ysym-andreasettannis-projects.vercel.app",
-    "https://clientappo-kynnn0qs7-andreasettannis-projects.vercel.app",
-    "https://appo-liard.vercel.app",
-    "https://appo-wjc5-h09acpeed-andreasettannis-projects.vercel.app",
-    "https://mioalias.vercel.app",
+    # Eventuali altri alias Vercel, se li usi (esempio):
+    # "https://clientappo-xxx.vercel.app",
+    # "https://appointment-syst.vercel.app",
 ]
 
-# Applica CORS
+# Abilita CORS solo sulle route /api/*
 CORS(
     app,
     resources={r"/api/*": {"origins": allowed_origins}},
     supports_credentials=True
 )
 
-# Configurazione database
+# =============================
+#   C O N F I G   D B
+# =============================
 DB_CONFIG = {
     "host": "34.17.85.107",
     "user": "root",
@@ -48,16 +44,19 @@ DB_CONFIG = {
 }
 
 def get_db():
-    """Crea una nuova connessione al database MySQL"""
+    """Crea e restituisce una connessione pymysql al DB."""
     try:
         logger.info("Tentativo di connessione al database...")
         conn = pymysql.connect(**DB_CONFIG)
         logger.info("Connessione al database riuscita")
         return conn
     except Exception as e:
-        logger.error(f"Errore connessione database: {str(e)}")
+        logger.error(f"Errore connessione database: {e}")
         raise
 
+# =============================
+#  R O U T E   D I   T E S T
+# =============================
 @app.route("/")
 def index_root():
     return "Server Flask attivo!"
@@ -66,16 +65,19 @@ def index_root():
 def index_api():
     return jsonify({"message": "Benvenuto nell'API!"})
 
-# ==================================================
-# =============== A U T H  R O U T E S =============
-# ==================================================
+# =============================
+#  A U T H   R O U T E S
+# =============================
 @app.route("/api/auth/register", methods=["POST"])
 def register():
-    """Registrazione utente (Admin o Client)"""
+    """
+    Registrazione utente. Può essere Admin o Client,
+    a seconda del campo "role" ricevuto nel JSON.
+    """
     logger.info("Inizio registrazione")
     start_time = time.time()
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         logger.info(f"Dati ricevuti: {data}")
         
         if not data:
@@ -85,18 +87,13 @@ def register():
         if not all(field in data for field in required):
             return jsonify({"error": "Campi obbligatori mancanti"}), 400
 
-        # Connessione DB
-        try:
-            conn = get_db()
-        except Exception as e:
-            logger.error(f"Errore connessione DB: {str(e)}")
-            return jsonify({"error": "Errore di connessione al database"}), 500
-
+        # Connetti DB
+        conn = get_db()
         try:
             with conn.cursor() as cursor:
-                # Verifica duplicati (username o email)
+                # Verifica duplicati
                 cursor.execute("""
-                    SELECT username FROM users 
+                    SELECT username FROM users
                     WHERE username = %s OR email = %s
                     LIMIT 1
                 """, (data["username"], data["email"]))
@@ -104,7 +101,7 @@ def register():
                 if cursor.fetchone():
                     return jsonify({"error": "Username o email già esistenti"}), 400
 
-                # Creazione utente
+                # Crea utente
                 hashed = generate_password_hash(data["password"], method="scrypt")
                 cursor.execute("""
                     INSERT INTO users (username, password_hash, email, phone, role, admin_id)
@@ -114,7 +111,7 @@ def register():
                     hashed,
                     data["email"],
                     data.get("phone", ""),
-                    data.get("role", "client"),  # se non passa "role", default "client"
+                    data.get("role", "client"),
                     data.get("admin_id")
                 ))
                 conn.commit()
@@ -133,7 +130,6 @@ def register():
 
         finally:
             conn.close()
-            logger.info("Connessione database chiusa")
 
     except Exception as e:
         logger.error(f"Errore registrazione: {str(e)}")
@@ -141,33 +137,29 @@ def register():
 
 @app.route("/api/auth/login", methods=["POST"])
 def login():
-    """Login utente"""
+    """
+    Login utente. Controlla username + password_hash.
+    """
     logger.info("Inizio login")
     start_time = time.time()
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         logger.info(f"Dati login ricevuti: {data}")
         
         if not data or "username" not in data or "password" not in data:
             return jsonify({"error": "Credenziali mancanti"}), 400
 
-        try:
-            conn = get_db()
-        except Exception as e:
-            logger.error(f"Errore connessione DB: {str(e)}")
-            return jsonify({"error": "Errore di connessione al database"}), 500
-
+        conn = get_db()
         try:
             with conn.cursor(pymysql.cursors.DictCursor) as cursor:
                 cursor.execute("""
                     SELECT id, username, password_hash, email, role, admin_id, phone
-                    FROM users 
+                    FROM users
                     WHERE username = %s
                     LIMIT 1
                 """, (data["username"],))
                 user = cursor.fetchone()
 
-            # Controllo credenziali
             if not user or not check_password_hash(user["password_hash"], data["password"]):
                 return jsonify({"error": "Credenziali non valide"}), 401
 
@@ -185,31 +177,30 @@ def login():
 
         finally:
             conn.close()
-            logger.info("Connessione database chiusa")
 
     except Exception as e:
         logger.error(f"Errore login: {str(e)}")
         return jsonify({"error": "Errore durante il login"}), 500
 
-# ==================================================
-# =========== C A L E N D A R  ( T U T T I ) =======
-# ==================================================
+# =============================
+#  C A L E N D A R   ( T U T T I )
+# =============================
 @app.route("/api/calendar/<int:user_id>", methods=["GET"])
 def get_calendar_data(user_id):
-    """Recupera eventi (slot e appuntamenti) in base al ruolo dell'utente"""
+    """Recupera tutti gli eventi (slot + appuntamenti) in base al ruolo dell'utente."""
     logger.info(f"Richiesta calendario per user_id: {user_id}")
     try:
         conn = get_db()
         with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            # Ottieni ruolo utente
+            # Ruolo utente
             cursor.execute("SELECT role FROM users WHERE id = %s", (user_id,))
             user = cursor.fetchone()
             if not user:
                 return jsonify({"error": "Utente non trovato"}), 404
 
-            # Se admin => tutti gli slot e appuntamenti
+            # Se admin => tutti gli slot e tutti gli appuntamenti
             # Se operator => solo i suoi
-            # Se client => solo slot approved e i propri appuntamenti
+            # Se client => slot approved + i propri appuntamenti
             if user['role'] == "admin":
                 cursor.execute("SELECT * FROM slots")
                 slots = cursor.fetchall()
@@ -226,16 +217,15 @@ def get_calendar_data(user_id):
                 cursor.execute("SELECT * FROM appointments WHERE client_id = %s", (user_id,))
                 appointments = cursor.fetchall()
 
-            # Costruisci la lista "events"
             events = []
             now = datetime.now()
 
-            # Processa slot
+            # Trasforma slot in eventi
             for slot in slots:
-                # ricava nome operatore
                 cursor.execute("SELECT username FROM users WHERE id = %s", (slot['operator_id'],))
                 operator = cursor.fetchone()
 
+                # Calcola data concreta (partendo dal day_of_week rispetto ad oggi)
                 diff = slot['day_of_week'] - now.weekday()
                 if diff < 0:
                     diff += 7
@@ -254,22 +244,23 @@ def get_calendar_data(user_id):
                     "status": slot['status']
                 })
 
-            # Processa appuntamenti
+            # Trasforma appuntamenti in eventi
             for appt in appointments:
-                cursor.execute(
-                    "SELECT id, username FROM users WHERE id IN (%s, %s)",
-                    (appt['client_id'], appt['operator_id'])
-                )
+                # Recupera utente client e operatore
+                cursor.execute("""
+                    SELECT id, username FROM users
+                    WHERE id IN (%s, %s)
+                """, (appt['client_id'], appt['operator_id']))
                 users_data = cursor.fetchall()
-                # mini helper per trovare i username
-                def find_user(uid):
+
+                def find_username(uid):
                     for u in users_data:
                         if u['id'] == uid:
                             return u['username']
                     return "???"
 
-                clientName = find_user(appt['client_id'])
-                operatorName = find_user(appt['operator_id'])
+                clientName = find_username(appt['client_id'])
+                operatorName = find_username(appt['operator_id'])
 
                 events.append({
                     "type": "appointment",
@@ -290,23 +281,23 @@ def get_calendar_data(user_id):
         logger.error(f"Errore calendario: {str(e)}")
         return jsonify({"error": "Errore durante il recupero del calendario"}), 500
 
-# ==================================================
-# =========== A D M I N  R O U T E S ===============
-# ==================================================
+# =============================
+#  A D M I N   R O U T E S
+# =============================
 @app.route("/api/admin/operators/<int:admin_id>", methods=["GET"])
 def get_operators(admin_id):
-    """Lista operatori per admin"""
+    """Lista operatori per admin_id."""
     try:
         conn = get_db()
         with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            # Controlla se admin_id è effettivamente admin
+            # Verifica che admin_id corrisponda a un admin
             cursor.execute("SELECT id FROM users WHERE id = %s AND role = 'admin'", (admin_id,))
             if not cursor.fetchone():
                 return jsonify({"error": "Non autorizzato"}), 403
 
             cursor.execute("""
-                SELECT id, username, email, phone, specialization 
-                FROM users 
+                SELECT id, username, email, phone, specialization
+                FROM users
                 WHERE admin_id = %s AND role = 'operator'
             """, (admin_id,))
             operators = cursor.fetchall()
@@ -319,18 +310,17 @@ def get_operators(admin_id):
 
 @app.route("/api/admin/clients/<int:admin_id>", methods=["GET"])
 def get_clients(admin_id):
-    """Lista clienti per admin"""
+    """Lista clienti per admin_id."""
     try:
         conn = get_db()
         with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            # Verifica admin
             cursor.execute("SELECT id FROM users WHERE id = %s AND role = 'admin'", (admin_id,))
             if not cursor.fetchone():
                 return jsonify({"error": "Non autorizzato"}), 403
 
             cursor.execute("""
-                SELECT id, username, email, phone 
-                FROM users 
+                SELECT id, username, email, phone
+                FROM users
                 WHERE admin_id = %s AND role = 'client'
             """, (admin_id,))
             clients = cursor.fetchall()
@@ -343,34 +333,32 @@ def get_clients(admin_id):
 
 @app.route("/api/admin/operators/add", methods=["POST"])
 def add_operator():
-    """Aggiunta operatore (admin)"""
+    """Aggiunge un nuovo operatore (role=operator) per un dato admin_id."""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         if not data:
             return jsonify({"error": "Dati mancanti"}), 400
 
         conn = get_db()
         with conn.cursor() as cursor:
             # Verifica admin
-            cursor.execute(
-                "SELECT id FROM users WHERE id = %s AND role = 'admin'",
-                (data.get('admin_id'),)
-            )
+            cursor.execute("SELECT id FROM users WHERE id = %s AND role = 'admin'",
+                           (data.get('admin_id'),))
             if not cursor.fetchone():
                 return jsonify({"error": "Non autorizzato"}), 403
 
             # Verifica duplicati
             cursor.execute("""
-                SELECT username FROM users 
+                SELECT username FROM users
                 WHERE username = %s OR email = %s
             """, (data['username'], data['email']))
             if cursor.fetchone():
                 return jsonify({"error": "Username o email già esistenti"}), 400
 
-            # Creazione operatore
+            # Crea operatore
             hashed = generate_password_hash(data['password'], method="scrypt")
             cursor.execute("""
-                INSERT INTO users (username, password_hash, email, phone, role, admin_id, specialization) 
+                INSERT INTO users (username, password_hash, email, phone, role, admin_id, specialization)
                 VALUES (%s, %s, %s, %s, 'operator', %s, %s)
             """, (
                 data['username'],
@@ -390,26 +378,25 @@ def add_operator():
 
 @app.route("/api/admin/appointments", methods=["POST"])
 def add_appointment():
-    """Creazione appuntamento (admin)"""
+    """Crea un nuovo appuntamento (admin)."""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         if not data:
             return jsonify({"error": "Dati mancanti"}), 400
 
         conn = get_db()
         with conn.cursor() as cursor:
-            # Verifica esistenza operatore / cliente
+            # Controllo su operator_id e client_id
             cursor.execute("""
-                SELECT id, phone FROM users 
+                SELECT id, phone FROM users
                 WHERE id IN (%s, %s)
             """, (data['operator_id'], data['client_id']))
-            users_found = cursor.fetchall()
-            if len(users_found) != 2:
+            found = cursor.fetchall()
+            if len(found) != 2:
                 return jsonify({"error": "Operatore o cliente non valido"}), 400
 
-            # Creazione appuntamento
             cursor.execute("""
-                INSERT INTO appointments (operator_id, client_id, start_time, 
+                INSERT INTO appointments (operator_id, client_id, start_time,
                                           end_time, service_type, created_at)
                 VALUES (%s, %s, %s, %s, %s, NOW())
             """, (
@@ -421,13 +408,13 @@ def add_appointment():
             ))
             conn.commit()
 
-            # Simula notifica WhatsApp al client
+            # Simula notifica WhatsApp
             client_phone = None
-            for u in users_found:
-                if u[0] == data['client_id']:
-                    client_phone = u[1]
+            for row in found:
+                if row[0] == data['client_id']:
+                    client_phone = row[1]
             if client_phone:
-                logger.info(f"[FAKE] Invio WhatsApp a {client_phone}: Nuovo appuntamento creato per il {data['start_time']}")
+                logger.info(f"[FAKE] Invio WhatsApp a {client_phone}: Nuovo appuntamento creato")
 
         return jsonify({"message": "Appuntamento creato con successo"}), 200
 
@@ -437,11 +424,10 @@ def add_appointment():
 
 @app.route("/api/admin/appointments/<int:appointment_id>", methods=["PUT", "DELETE"])
 def manage_appointment_by_id(appointment_id):
-    """Aggiorna o elimina appuntamento (admin)"""
+    """Aggiorna o elimina un singolo appuntamento (admin)."""
     try:
         conn = get_db()
         with conn.cursor() as cursor:
-            # Verifica se esiste
             cursor.execute("SELECT id FROM appointments WHERE id = %s", (appointment_id,))
             if not cursor.fetchone():
                 return jsonify({"error": "Appuntamento non trovato"}), 404
@@ -453,7 +439,7 @@ def manage_appointment_by_id(appointment_id):
                 return jsonify({"message": "Appuntamento eliminato"}), 200
 
             # Se PUT => aggiorna
-            data = request.get_json()
+            data = request.get_json() or {}
             updates = []
             params = []
 
@@ -484,7 +470,7 @@ def manage_appointment_by_id(appointment_id):
 
 @app.route("/api/admin/send-reminders", methods=["POST"])
 def send_reminders():
-    """Invio reminder WhatsApp (fittizio) per appuntamenti di domani"""
+    """Simula l'invio di reminder WhatsApp per appuntamenti di domani."""
     try:
         tomorrow = datetime.now() + timedelta(days=1)
         start_tomorrow = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -503,7 +489,7 @@ def send_reminders():
 
             for appt in appointments:
                 orario = appt['start_time'].strftime('%H:%M')
-                logger.info(f"[FAKE] Invio reminder WhatsApp a {appt['phone']}: Appuntamento domani alle {orario}")
+                logger.info(f"[FAKE] Reminder a {appt['phone']}: Appuntamento domani alle {orario}")
 
         return jsonify({"message": "Notifiche inviate"}), 200
 
@@ -511,24 +497,24 @@ def send_reminders():
         logger.error(f"Errore invio reminder: {str(e)}")
         return jsonify({"error": "Errore durante l'invio dei reminder"}), 500
 
-# ==================================================
-# ===========  A D M I N   S L O T S  ==============
-# ==================================================
+# =============================
+#  A D M I N   S L O T S
+# =============================
 @app.route("/api/admin/slots/pending", methods=["GET"])
 def get_pending_slots():
-    """Lista slot in stato 'pending'"""
+    """Restituisce la lista degli slot con status = 'pending'."""
     try:
         conn = get_db()
         with conn.cursor(pymysql.cursors.DictCursor) as cursor:
             cursor.execute("""
-                SELECT id, operator_id, client_id, day_of_week, 
+                SELECT id, operator_id, client_id, day_of_week,
                        start_time, end_time, status
-                FROM slots 
+                FROM slots
                 WHERE status = 'pending'
             """)
             slots = cursor.fetchall()
 
-            # Converte gli orari in stringa HH:MM
+            # Converte gli orari in HH:MM
             for s in slots:
                 s["start_time"] = s["start_time"].strftime("%H:%M")
                 s["end_time"] = s["end_time"].strftime("%H:%M")
@@ -541,7 +527,7 @@ def get_pending_slots():
 
 @app.route("/api/admin/slots/<int:slot_id>/<string:action>", methods=["PUT"])
 def manage_slot(slot_id, action):
-    """Approva o rifiuta slot"""
+    """Approva (approve) o rifiuta (reject) uno slot in stato pending."""
     if action not in ['approve', 'reject']:
         return jsonify({"error": "Azione non valida"}), 400
 
@@ -550,14 +536,14 @@ def manage_slot(slot_id, action):
         with conn.cursor() as cursor:
             new_status = 'approved' if action == 'approve' else 'rejected'
             cursor.execute("""
-                UPDATE slots 
-                SET status = %s 
+                UPDATE slots
+                SET status = %s
                 WHERE id = %s AND status = 'pending'
             """, (new_status, slot_id))
             conn.commit()
 
             if cursor.rowcount == 0:
-                return jsonify({"error": "Slot non trovato o non in stato pending"}), 404
+                return jsonify({"error": "Slot non trovato o non più pending"}), 404
 
         return jsonify({"message": f"Slot {action}d con successo"}), 200
 
@@ -565,14 +551,14 @@ def manage_slot(slot_id, action):
         logger.error(f"Errore gestione slot: {str(e)}")
         return jsonify({"error": f"Errore durante {action} dello slot"}), 500
 
-# ==================================================
-# ===========  C L I E N T   S L O T S  ============
-# ==================================================
+# =============================
+#  C L I E N T   S L O T S
+# =============================
 @app.route("/api/client/slots/request", methods=["POST"])
 def request_slot():
-    """Il client richiede la creazione di uno slot (pending)"""
+    """Il client richiede la creazione di uno slot (status = pending)."""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         if not data:
             return jsonify({"error": "Dati mancanti"}), 400
 
@@ -580,15 +566,15 @@ def request_slot():
         with conn.cursor() as cursor:
             # Verifica esistenza client e operator
             cursor.execute("""
-                SELECT id FROM users 
+                SELECT id FROM users
                 WHERE id IN (%s, %s)
             """, (data['client_id'], data['operator_id']))
             if len(cursor.fetchall()) != 2:
                 return jsonify({"error": "Client o operator non valido"}), 400
 
-            # Crea slot in stato 'pending'
+            # Crea slot in stato pending
             cursor.execute("""
-                INSERT INTO slots (operator_id, client_id, day_of_week, 
+                INSERT INTO slots (operator_id, client_id, day_of_week,
                                    start_time, end_time, status, is_active)
                 VALUES (%s, %s, %s, %s, %s, 'pending', TRUE)
             """, (
@@ -606,9 +592,9 @@ def request_slot():
         logger.error(f"Errore richiesta slot: {str(e)}")
         return jsonify({"error": "Errore durante la richiesta dello slot"}), 500
 
-# ==================================================
-# =========== MAIN - avvio server ==================
-# ==================================================
+# =============================
+#  MAIN
+# =============================
 if __name__ == "__main__":
-    # Avvio in locale su porta 5000, in produzione configuralo diversamente
+    # Avvia server in locale (debug) sulla porta 5000
     app.run(debug=True, port=5000)

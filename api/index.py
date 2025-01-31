@@ -1,600 +1,1570 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import pymysql
-import time
-from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timedelta
-import logging
+import React, { useState, useEffect } from "react";
+import { Calendar, momentLocalizer } from "react-big-calendar";
+import moment from "moment";
+import "moment/locale/it";
+import "react-big-calendar/lib/css/react-big-calendar.css";
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+// Se usi Tailwind, importa i CSS in index.js o altrove
 
-app = Flask(__name__)
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Input,
+  Label,
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui";  // Adatta ai tuoi percorsi reali
 
-# =============================
-#  C O R S   C O N F I G
-# =============================
-# Aggiungi qui i domini che usi davvero (senza slash finale).
-allowed_origins = [
-    "http://localhost:3000",
-    "https://clientappo.vercel.app",
-    # Eventuali altri alias Vercel, se li usi (esempio):
-    # "https://clientappo-xxx.vercel.app",
-    # "https://appointment-syst.vercel.app",
-]
+import {
+  CalendarIcon,
+  Users,
+  UserPlus,
+  Bell,
+  Lock,
+  Mail,
+  Clock,
+  LogOut,
+  Calendar as CalendarIcon2,
+  PlusCircle,
+} from "lucide-react";
 
-# Abilita CORS solo sulle route /api/*
-CORS(
-    app,
-    resources={r"/api/*": {"origins": allowed_origins}},
-    supports_credentials=True
-)
+moment.locale("it");
+const localizer = momentLocalizer(moment);
 
-# =============================
-#   C O N F I G   D B
-# =============================
-DB_CONFIG = {
-    "host": "34.17.85.107",
-    "user": "root",
-    "password": "lollo201416",
-    "db": "appointment_db",
-    "connect_timeout": 3,
-    "read_timeout": 3,
-    "write_timeout": 3
+// =======================
+//  C O N F I G   A P I
+// =======================
+const API_URL = "https://appointment-syst-kykv994q5-andreasettannis-projects.vercel.app/api";
+
+const fetchConfig = {
+  headers: {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  },
+};
+
+// ====================
+//  FUNZIONE HELPER
+// ====================
+function getAdminIdForUser(user) {
+  return user?.role === "admin" ? user.id : user?.admin_id;
 }
 
-def get_db():
-    """Crea e restituisce una connessione pymysql al DB."""
-    try:
-        logger.info("Tentativo di connessione al database...")
-        conn = pymysql.connect(**DB_CONFIG)
-        logger.info("Connessione al database riuscita")
-        return conn
-    except Exception as e:
-        logger.error(f"Errore connessione database: {e}")
-        raise
+// ====================
+//  MODALE: CREATE APPOINTMENT
+// ====================
+const CreateAppointmentModal = ({
+  isOpen,
+  onClose,
+  operatori,
+  clienti,
+  onAddAppointment,
+}) => {
+  const [formData, setFormData] = useState({
+    operator_id: "",
+    client_id: "",
+    start_time: "",
+    end_time: "",
+    service_type: "",
+  });
 
-# =============================
-#  R O U T E   D I   T E S T
-# =============================
-@app.route("/")
-def index_root():
-    return "Server Flask attivo!"
+  if (!isOpen) return null;
 
-@app.route("/api")
-def index_api():
-    return jsonify({"message": "Benvenuto nell'API!"})
+  function handleSubmit(e) {
+    e.preventDefault();
+    onAddAppointment(formData);
+    onClose();
+  }
 
-# =============================
-#  A U T H   R O U T E S
-# =============================
-@app.route("/api/auth/register", methods=["POST"])
-def register():
-    """
-    Registrazione utente. Può essere Admin o Client,
-    a seconda del campo "role" ricevuto nel JSON.
-    """
-    logger.info("Inizio registrazione")
-    start_time = time.time()
-    try:
-        data = request.get_json() or {}
-        logger.info(f"Dati ricevuti: {data}")
-        
-        if not data:
-            return jsonify({"error": "Dati mancanti"}), 400
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Nuovo Appuntamento</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label>Operatore</Label>
+            <Select
+              onValueChange={(val) => setFormData({ ...formData, operator_id: val })}
+              value={formData.operator_id}
+              required
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleziona Operatore" />
+              </SelectTrigger>
+              <SelectContent>
+                {operatori.map((op) => (
+                  <SelectItem key={op.id} value={op.id.toString()}>
+                    {op.username}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Cliente</Label>
+            <Select
+              onValueChange={(val) => setFormData({ ...formData, client_id: val })}
+              value={formData.client_id}
+              required
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleziona Cliente" />
+              </SelectTrigger>
+              <SelectContent>
+                {clienti.map((c) => (
+                  <SelectItem key={c.id} value={c.id.toString()}>
+                    {c.username}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Data e Ora Inizio</Label>
+            <Input
+              type="datetime-local"
+              value={formData.start_time}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, start_time: e.target.value }))
+              }
+              required
+            />
+          </div>
+          <div>
+            <Label>Data e Ora Fine</Label>
+            <Input
+              type="datetime-local"
+              value={formData.end_time}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, end_time: e.target.value }))
+              }
+              required
+            />
+          </div>
+          <div>
+            <Label>Tipo Servizio</Label>
+            <Input
+              value={formData.service_type}
+              onChange={(e) =>
+                setFormData({ ...formData, service_type: e.target.value })
+              }
+            />
+          </div>
+          <Button type="submit">Crea</Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
 
-        required = ["username", "password", "email"]
-        if not all(field in data for field in required):
-            return jsonify({"error": "Campi obbligatori mancanti"}), 400
+// ====================
+//  MODALE: EDIT APPOINTMENT
+// ====================
+const EditAppointmentModal = ({
+  isOpen,
+  onClose,
+  appointment,
+  onSave,
+  onDelete,
+}) => {
+  const [formData, setFormData] = useState({});
 
-        # Connetti DB
-        conn = get_db()
-        try:
-            with conn.cursor() as cursor:
-                # Verifica duplicati
-                cursor.execute("""
-                    SELECT username FROM users
-                    WHERE username = %s OR email = %s
-                    LIMIT 1
-                """, (data["username"], data["email"]))
-                
-                if cursor.fetchone():
-                    return jsonify({"error": "Username o email già esistenti"}), 400
+  useEffect(() => {
+    if (appointment) {
+      setFormData({
+        id: appointment.id,
+        start_time: moment(appointment.start_time).format("YYYY-MM-DDTHH:mm"),
+        end_time: moment(appointment.end_time).format("YYYY-MM-DDTHH:mm"),
+        service_type: appointment.service_type || "",
+        status: appointment.status || "",
+      });
+    }
+  }, [appointment]);
 
-                # Crea utente
-                hashed = generate_password_hash(data["password"], method="scrypt")
-                cursor.execute("""
-                    INSERT INTO users (username, password_hash, email, phone, role, admin_id)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (
-                    data["username"],
-                    hashed,
-                    data["email"],
-                    data.get("phone", ""),
-                    data.get("role", "client"),
-                    data.get("admin_id")
-                ))
-                conn.commit()
-                new_user_id = cursor.lastrowid
+  if (!isOpen || !appointment) return null;
 
-            logger.info(f"Registrazione completata in {time.time() - start_time:.2f} secondi")
-            return jsonify({
-                "message": "Registrazione completata",
-                "user": {
-                    "id": new_user_id,
-                    "username": data["username"],
-                    "email": data["email"],
-                    "role": data.get("role", "client")
+  function handleSubmit(e) {
+    e.preventDefault();
+    onSave(formData);
+    onClose();
+  }
+
+  function handleDeleteClick() {
+    onDelete(appointment.id);
+    onClose();
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Modifica Appuntamento #{appointment?.id}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label>Data e Ora Inizio</Label>
+            <Input
+              type="datetime-local"
+              value={formData.start_time || ""}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, start_time: e.target.value }))
+              }
+              required
+            />
+          </div>
+          <div>
+            <Label>Data e Ora Fine</Label>
+            <Input
+              type="datetime-local"
+              value={formData.end_time || ""}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, end_time: e.target.value }))
+              }
+              required
+            />
+          </div>
+          <div>
+            <Label>Tipo Servizio</Label>
+            <Input
+              value={formData.service_type || ""}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, service_type: e.target.value }))
+              }
+            />
+          </div>
+          <div>
+            <Label>Stato</Label>
+            <Select
+              onValueChange={(val) => setFormData((prev) => ({ ...prev, status: val }))}
+              value={formData.status}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Scegli Stato" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="scheduled">Programmato</SelectItem>
+                <SelectItem value="completed">Completato</SelectItem>
+                <SelectItem value="cancelled">Annullato</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex gap-4">
+            <Button type="submit">Salva</Button>
+            <Button variant="destructive" onClick={handleDeleteClick}>
+              Elimina
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// ====================
+//  Esempio Stats Admin
+// ====================
+const AdminStatsPanel = ({ operatori, appuntamenti }) => {
+  const numOperatori = operatori.length;
+  const numAppuntamenti = appuntamenti.length;
+
+  return (
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle>Statistiche Rapide</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p>Operatori: {numOperatori}</p>
+        <p>Appuntamenti: {numAppuntamenti}</p>
+      </CardContent>
+    </Card>
+  );
+};
+
+// ====================
+//  COMPONENTE PRINCIPALE
+// ====================
+const Dashboard = () => {
+  const [view, setView] = useState("login");
+  const [user, setUser] = useState(null);
+
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  // Login
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+
+  // Register Admin
+  const [regData, setRegData] = useState({
+    username: "",
+    email: "",
+    password: "",
+    phone: "",
+  });
+
+  // Recover
+  const [recoverEmail, setRecoverEmail] = useState("");
+
+  // Admin data
+  const [operatori, setOperatori] = useState([]);
+  const [clienti, setClienti] = useState([]);
+  const [newOperator, setNewOperator] = useState({
+    username: "",
+    email: "",
+    password: "",
+    phone: "",
+    specialization: "",
+  });
+  const [newClient, setNewClient] = useState({
+    username: "",
+    email: "",
+    password: "",
+    phone: "",
+  });
+
+  // Calendario
+  const [calendarEvents, setCalendarEvents] = useState([]);
+  const [appuntamenti, setAppuntamenti] = useState([]);
+
+  const [adminCalendarView, setAdminCalendarView] = useState("week");
+  const [adminCalendarDate, setAdminCalendarDate] = useState(new Date());
+
+  // Operator
+  const [operatorCalendarView, setOperatorCalendarView] = useState("week");
+  const [operatorCalendarDate, setOperatorCalendarDate] = useState(new Date());
+
+  // Client
+  const [clientCalendarView, setClientCalendarView] = useState("week");
+  const [clientCalendarDate, setClientCalendarDate] = useState(new Date());
+
+  // Modali
+  const [isCreateApptOpen, setIsCreateApptOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [isEditApptOpen, setIsEditApptOpen] = useState(false);
+
+  // Slots pending
+  const [pendingSlots, setPendingSlots] = useState([]);
+
+  // Client slot request
+  const [requestSlotData, setRequestSlotData] = useState({
+    operator_id: "",
+    day_of_week: "",
+    start_time: "",
+    end_time: "",
+  });
+
+  // ==================== UseEffect ====================
+  useEffect(() => {
+    if (user?.id) {
+      fetchCalendarData();
+      if (user.role === "admin") {
+        fetchOperatorsAndClients();
+        fetchPendingSlots();
+      }
+    }
+    // eslint-disable-next-line
+  }, [user]);
+
+  // ==================== AUTH FUNZIONI ====================
+  async function handleLogin(e) {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        ...fetchConfig,
+        method: "POST",
+        body: JSON.stringify({ username, password }),
+      });
+      if (!res.ok) {
+        if (res.status === 401) {
+          setError("Credenziali non valide");
+        } else {
+          setError("Errore di rete o CORS");
+        }
+        return;
+      }
+      const data = await res.json();
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+      setUser(data.user);
+      setView(data.user.role);
+    } catch (err) {
+      setError("Errore di rete");
+      console.error(err);
+    }
+  }
+
+  function handleLogout() {
+    setUser(null);
+    setView("login");
+    setError("");
+    setSuccess("");
+    setUsername("");
+    setPassword("");
+  }
+
+  async function handleRegister(e) {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    try {
+      const body = { ...regData, role: "admin" };
+      const res = await fetch(`${API_URL}/auth/register`, {
+        ...fetchConfig,
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        setError("Errore di rete o CORS nella registrazione");
+        return;
+      }
+      const data = await res.json();
+      if (data.error) {
+        setError(data.error);
+      } else {
+        setSuccess("Registrazione completata. Ora effettua il login!");
+        setRegData({ username: "", email: "", password: "", phone: "" });
+      }
+    } catch (err) {
+      setError("Errore di rete");
+      console.error(err);
+    }
+  }
+
+  function handleRecover(e) {
+    e.preventDefault();
+    setError("");
+    setSuccess("Email di recupero (finta) inviata!");
+  }
+
+  // ==================== ADMIN FUNZIONI ====================
+  async function fetchOperatorsAndClients() {
+    const adminId = getAdminIdForUser(user);
+    if (!adminId) return;
+    setError("");
+    try {
+      const [opRes, clRes] = await Promise.all([
+        fetch(`${API_URL}/admin/operators/${adminId}`, fetchConfig),
+        fetch(`${API_URL}/admin/clients/${adminId}`, fetchConfig),
+      ]);
+      if (!opRes.ok || !clRes.ok) {
+        setError("Errore caricamento operatori/clienti");
+        return;
+      }
+      const opData = await opRes.json();
+      const clData = await clRes.json();
+      setOperatori(opData.operators || []);
+      setClienti(clData.clients || []);
+    } catch (err) {
+      setError("Errore di rete");
+      console.error(err);
+    }
+  }
+
+  async function fetchPendingSlots() {
+    setError("");
+    try {
+      const res = await fetch(`${API_URL}/admin/slots/pending`, fetchConfig);
+      if (!res.ok) {
+        setError("Errore caricamento slot pendenti");
+        return;
+      }
+      const data = await res.json();
+      setPendingSlots(data.slots || []);
+    } catch (err) {
+      setError("Errore di rete");
+      console.error(err);
+    }
+  }
+
+  async function handleApproveSlot(slotId) {
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch(`${API_URL}/admin/slots/${slotId}/approve`, {
+        ...fetchConfig,
+        method: "PUT",
+      });
+      if (!res.ok) {
+        setError("Errore approvazione slot");
+        return;
+      }
+      setSuccess("Slot approvato con successo!");
+      fetchPendingSlots();
+      fetchCalendarData();
+    } catch (err) {
+      console.error(err);
+      setError("Errore di rete");
+    }
+  }
+
+  async function handleRejectSlot(slotId) {
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch(`${API_URL}/admin/slots/${slotId}/reject`, {
+        ...fetchConfig,
+        method: "PUT",
+      });
+      if (!res.ok) {
+        setError("Errore rifiuto slot");
+        return;
+      }
+      setSuccess("Slot rifiutato");
+      fetchPendingSlots();
+      fetchCalendarData();
+    } catch (err) {
+      console.error(err);
+      setError("Errore di rete");
+    }
+  }
+
+  async function handleAddOperator(e) {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    const adminId = getAdminIdForUser(user);
+    if (!adminId) return;
+    try {
+      const res = await fetch(`${API_URL}/admin/operators/add`, {
+        ...fetchConfig,
+        method: "POST",
+        body: JSON.stringify({ admin_id: adminId, ...newOperator }),
+      });
+      if (!res.ok) {
+        setError("Errore creazione operatore");
+        return;
+      }
+      setSuccess("Operatore creato con successo!");
+      setNewOperator({
+        username: "",
+        email: "",
+        password: "",
+        phone: "",
+        specialization: "",
+      });
+      fetchOperatorsAndClients();
+    } catch (err) {
+      console.error(err);
+      setError("Errore di rete");
+    }
+  }
+
+  async function handleAddClient(e) {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    const adminId = getAdminIdForUser(user);
+    if (!adminId) return;
+    try {
+      const payload = { ...newClient, role: "client", admin_id: adminId };
+      const res = await fetch(`${API_URL}/auth/register`, {
+        ...fetchConfig,
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        setError("Errore creazione cliente");
+        return;
+      }
+      const data = await res.json();
+      if (data.error) {
+        setError(data.error);
+      } else {
+        setSuccess("Cliente creato con successo!");
+        setNewClient({ username: "", email: "", password: "", phone: "" });
+        fetchOperatorsAndClients();
+      }
+    } catch (err) {
+      setError("Errore di rete");
+      console.error(err);
+    }
+  }
+
+  async function handleAddAppointment(formData) {
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch(`${API_URL}/admin/appointments`, {
+        ...fetchConfig,
+        method: "POST",
+        body: JSON.stringify(formData),
+      });
+      if (!res.ok) {
+        setError("Errore creazione appuntamento");
+        return;
+      }
+      setSuccess("Appuntamento creato con successo!");
+      fetchCalendarData();
+    } catch (err) {
+      setError("Errore di rete");
+      console.error(err);
+    }
+  }
+
+  async function handleSaveAppointment(formData) {
+    setError("");
+    setSuccess("");
+    try {
+      const { id, ...updates } = formData;
+      updates.start_time = moment(updates.start_time).toISOString();
+      updates.end_time = moment(updates.end_time).toISOString();
+      const res = await fetch(`${API_URL}/admin/appointments/${id}`, {
+        ...fetchConfig,
+        method: "PUT",
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) {
+        setError("Errore update appuntamento");
+        return;
+      }
+      setSuccess("Appuntamento aggiornato!");
+      fetchCalendarData();
+    } catch (err) {
+      setError("Errore di rete");
+      console.error(err);
+    }
+  }
+
+  async function handleDeleteAppointment(apptId) {
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch(`${API_URL}/admin/appointments/${apptId}`, {
+        ...fetchConfig,
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        setError("Errore eliminazione appuntamento");
+        return;
+      }
+      setSuccess("Appuntamento eliminato!");
+      fetchCalendarData();
+    } catch (err) {
+      setError("Errore di rete");
+      console.error(err);
+    }
+  }
+
+  async function handleWhatsAppReminders() {
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch(`${API_URL}/admin/send-reminders`, {
+        ...fetchConfig,
+        method: "POST",
+      });
+      if (!res.ok) {
+        setError("Errore invio notifiche");
+        return;
+      }
+      setSuccess("Notifiche WhatsApp inviate con successo!");
+    } catch (err) {
+      setError("Errore di rete");
+      console.error(err);
+    }
+  }
+
+  // ==================== CALENDAR FUNZIONI ====================
+  async function fetchCalendarData() {
+    if (!user?.id) return;
+    setError("");
+    try {
+      const res = await fetch(`${API_URL}/calendar/${user.id}`, fetchConfig);
+      if (!res.ok) {
+        setError("Errore caricamento calendario");
+        return;
+      }
+      const data = await res.json();
+      const mapped = (data.events || []).map((ev) => ({
+        ...ev,
+        start: new Date(ev.start_time),
+        end: new Date(ev.end_time),
+        isSlot: ev.type === "slot",
+        slotStatus: ev.status,
+      }));
+      setCalendarEvents(mapped);
+
+      if (user.role === "admin") {
+        const apps = mapped
+          .filter((m) => !m.isSlot)
+          .map((a) => ({
+            id: a.id,
+            operator_id: a.operator_id,
+            client_id: a.client_id,
+            start_time: a.start,
+            end_time: a.end,
+            service_type: a.service_type,
+            status: a.status,
+          }));
+        setAppuntamenti(apps);
+      }
+    } catch (err) {
+      setError("Errore di rete");
+      console.error(err);
+    }
+  }
+
+  // ==================== CLIENT FUNZIONI ====================
+  async function handleRequestSlot(e) {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    if (!user?.id) return;
+    try {
+      const payload = {
+        ...requestSlotData,
+        client_id: user.id,
+      };
+      const res = await fetch(`${API_URL}/client/slots/request`, {
+        ...fetchConfig,
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        setError("Errore richiesta slot");
+        return;
+      }
+      setSuccess("Richiesta slot inviata! Attendi approvazione dall'admin.");
+      setRequestSlotData({
+        operator_id: "",
+        day_of_week: "",
+        start_time: "",
+        end_time: "",
+      });
+    } catch (err) {
+      setError("Errore di rete");
+      console.error(err);
+    }
+  }
+
+  // ====================
+  //  R E N D E R   L O G I N / R E G I S T E R / R E C O V E R
+  // ====================
+  function renderLogin() {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Lock className="h-4 w-4" />
+              Login
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <Label>Username</Label>
+                <Input
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Label>Password</Label>
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              {success && (
+                <Alert>
+                  <AlertDescription>{success}</AlertDescription>
+                </Alert>
+              )}
+              <Button type="submit" className="w-full">
+                Accedi
+              </Button>
+            </form>
+            <div className="mt-4 text-center space-x-4">
+              <Button variant="link" onClick={() => setView("recover")}>
+                Recupera Password
+              </Button>
+              <Button variant="link" onClick={() => setView("register")}>
+                Registrazione Admin
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  function renderRegister() {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UserPlus className="h-4 w-4" />
+              Registrazione Admin
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleRegister} className="space-y-4">
+              <div>
+                <Label>Username</Label>
+                <Input
+                  value={regData.username}
+                  onChange={(e) =>
+                    setRegData({ ...regData, username: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={regData.email}
+                  onChange={(e) =>
+                    setRegData({ ...regData, email: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <Label>Password</Label>
+                <Input
+                  type="password"
+                  value={regData.password}
+                  onChange={(e) =>
+                    setRegData({ ...regData, password: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <Label>Telefono</Label>
+                <Input
+                  value={regData.phone}
+                  onChange={(e) =>
+                    setRegData({ ...regData, phone: e.target.value })
+                  }
+                />
+              </div>
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              {success && (
+                <Alert>
+                  <AlertDescription>{success}</AlertDescription>
+                </Alert>
+              )}
+              <Button type="submit" className="w-full">
+                Registrati
+              </Button>
+            </form>
+            <div className="mt-4 text-center">
+              <Button variant="link" onClick={() => setView("login")}>
+                Torna al Login
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  function renderRecover() {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Mail className="h-4 w-4" />
+              Recupero Password
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleRecover} className="space-y-4">
+              <div>
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={recoverEmail}
+                  onChange={(e) => setRecoverEmail(e.target.value)}
+                  required
+                />
+              </div>
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              {success && (
+                <Alert>
+                  <AlertDescription>{success}</AlertDescription>
+                </Alert>
+              )}
+              <Button type="submit" className="w-full">
+                Invia Richiesta
+              </Button>
+            </form>
+            <div className="mt-4 text-center">
+              <Button variant="link" onClick={() => setView("login")}>
+                Torna al Login
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ====================
+  //  R E N D E R   A D M I N
+  // ====================
+  function renderAdmin() {
+    function handleSelectAdminEvent(ev) {
+      if (!ev.isSlot) {
+        setSelectedAppointment(ev);
+        setIsEditApptOpen(true);
+      }
+    }
+
+    return (
+      <div className="p-4 md:p-6 max-w-7xl mx-auto w-full">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <h1 className="text-3xl font-bold">Dashboard Admin</h1>
+          <div className="space-x-2 flex flex-wrap">
+            <Button onClick={handleWhatsAppReminders}>
+              <Bell className="h-4 w-4 mr-2" />
+              Invia Notifiche
+            </Button>
+            <Button variant="destructive" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
+        </div>
+
+        <AdminStatsPanel operatori={operatori} appuntamenti={appuntamenti} />
+
+        <Tabs defaultValue="operatori" className="mt-6">
+          <TabsList>
+            <TabsTrigger value="operatori">
+              <Users className="h-4 w-4 mr-2" />
+              Operatori
+            </TabsTrigger>
+            <TabsTrigger value="clienti">
+              <UserPlus className="h-4 w-4 mr-2" />
+              Clienti
+            </TabsTrigger>
+            <TabsTrigger value="appuntamenti">
+              <CalendarIcon className="h-4 w-4 mr-2" />
+              Appuntamenti
+            </TabsTrigger>
+            <TabsTrigger value="pendingSlots">
+              <Clock className="h-4 w-4 mr-2" />
+              Richieste Slot
+            </TabsTrigger>
+          </TabsList>
+
+          {/* OPERATORI */}
+          <TabsContent value="operatori">
+            <Card>
+              <CardHeader>
+                <CardTitle>Gestione Operatori</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleAddOperator} className="space-y-4 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Username</Label>
+                      <Input
+                        value={newOperator.username}
+                        onChange={(e) =>
+                          setNewOperator({ ...newOperator, username: e.target.value })
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Email</Label>
+                      <Input
+                        type="email"
+                        value={newOperator.email}
+                        onChange={(e) =>
+                          setNewOperator({ ...newOperator, email: e.target.value })
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Password</Label>
+                      <Input
+                        type="password"
+                        value={newOperator.password}
+                        onChange={(e) =>
+                          setNewOperator({ ...newOperator, password: e.target.value })
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Telefono</Label>
+                      <Input
+                        value={newOperator.phone}
+                        onChange={(e) =>
+                          setNewOperator({ ...newOperator, phone: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <Label>Specializzazione</Label>
+                      <Input
+                        value={newOperator.specialization}
+                        onChange={(e) =>
+                          setNewOperator({
+                            ...newOperator,
+                            specialization: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <Button type="submit">Aggiungi Operatore</Button>
+                </form>
+
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableCell>Username</TableCell>
+                        <TableCell>Email</TableCell>
+                        <TableCell>Telefono</TableCell>
+                        <TableCell>Specializzazione</TableCell>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {operatori.map((op) => (
+                        <TableRow key={op.id}>
+                          <TableCell>{op.username}</TableCell>
+                          <TableCell>{op.email}</TableCell>
+                          <TableCell>{op.phone}</TableCell>
+                          <TableCell>{op.specialization}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* CLIENTI */}
+          <TabsContent value="clienti">
+            <Card>
+              <CardHeader>
+                <CardTitle>Gestione Clienti</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleAddClient} className="space-y-4 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Username</Label>
+                      <Input
+                        value={newClient.username}
+                        onChange={(e) =>
+                          setNewClient({ ...newClient, username: e.target.value })
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Email</Label>
+                      <Input
+                        type="email"
+                        value={newClient.email}
+                        onChange={(e) =>
+                          setNewClient({ ...newClient, email: e.target.value })
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Password</Label>
+                      <Input
+                        type="password"
+                        value={newClient.password}
+                        onChange={(e) =>
+                          setNewClient({ ...newClient, password: e.target.value })
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Telefono</Label>
+                      <Input
+                        value={newClient.phone}
+                        onChange={(e) =>
+                          setNewClient({ ...newClient, phone: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <Button type="submit">Aggiungi Cliente</Button>
+                </form>
+
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableCell>Username</TableCell>
+                        <TableCell>Email</TableCell>
+                        <TableCell>Telefono</TableCell>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {clienti.map((c) => (
+                        <TableRow key={c.id}>
+                          <TableCell>{c.username}</TableCell>
+                          <TableCell>{c.email}</TableCell>
+                          <TableCell>{c.phone}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* APPUNTAMENTI */}
+          <TabsContent value="appuntamenti">
+            <Card>
+              <CardHeader>
+                <CardTitle>Calendario (Slot + Appuntamenti)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4">
+                  <Button onClick={() => setIsCreateApptOpen(true)}>
+                    <CalendarIcon2 className="h-4 w-4 mr-2" />
+                    Nuovo Appuntamento
+                  </Button>
+                </div>
+                <Calendar
+                  localizer={localizer}
+                  events={calendarEvents}
+                  startAccessor="start"
+                  endAccessor="end"
+                  view={adminCalendarView}
+                  onView={setAdminCalendarView}
+                  views={["month", "week", "day"]}
+                  date={adminCalendarDate}
+                  onNavigate={setAdminCalendarDate}
+                  style={{ height: 600 }}
+                  messages={{
+                    next: "Successivo",
+                    previous: "Precedente",
+                    today: "Oggi",
+                    month: "Mese",
+                    week: "Settimana",
+                    day: "Giorno",
+                  }}
+                  tooltipAccessor={(event) => {
+                    if (event.isSlot) {
+                      return `Slot ${event.slotStatus} - Operatore: ${event.operator_name}`;
+                    }
+                    return `Appuntamento con ${event.clientName}`;
+                  }}
+                  eventPropGetter={(event) => {
+                    if (event.isSlot) {
+                      if (event.slotStatus === "approved") {
+                        return { style: { backgroundColor: "#F59E0B" } };
+                      }
+                      if (event.slotStatus === "pending") {
+                        return { style: { backgroundColor: "#9CA3AF" } };
+                      }
+                      return { style: { backgroundColor: "#6B7280" } };
+                    }
+                    let bg = "#3B82F6";
+                    if (event.status === "completed") bg = "#10B981";
+                    else if (event.status === "cancelled") bg = "#EF4444";
+                    return { style: { backgroundColor: bg } };
+                  }}
+                  onSelectEvent={handleSelectAdminEvent}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* SLOT PENDING */}
+          <TabsContent value="pendingSlots">
+            <Card>
+              <CardHeader>
+                <CardTitle>Richieste Slot (da Approvare)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableCell>ID</TableCell>
+                        <TableCell>Operatore</TableCell>
+                        <TableCell>Giorno</TableCell>
+                        <TableCell>Orario</TableCell>
+                        <TableCell>Cliente</TableCell>
+                        <TableCell>Azioni</TableCell>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pendingSlots.map((slot) => (
+                        <TableRow key={slot.id}>
+                          <TableCell>{slot.id}</TableCell>
+                          <TableCell>{slot.operator_id}</TableCell>
+                          <TableCell>{slot.day_of_week}</TableCell>
+                          <TableCell>
+                            {slot.start_time} - {slot.end_time}
+                          </TableCell>
+                          <TableCell>{slot.client_id}</TableCell>
+                          <TableCell>
+                            <Button
+                              size="sm"
+                              onClick={() => handleApproveSlot(slot.id)}
+                              className="mr-2"
+                            >
+                              Approva
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleRejectSlot(slot.id)}
+                            >
+                              Rifiuta
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        <CreateAppointmentModal
+          isOpen={isCreateApptOpen}
+          onClose={() => setIsCreateApptOpen(false)}
+          operatori={operatori}
+          clienti={clienti}
+          onAddAppointment={handleAddAppointment}
+        />
+        <EditAppointmentModal
+          isOpen={isEditApptOpen}
+          onClose={() => setIsEditApptOpen(false)}
+          appointment={selectedAppointment}
+          onSave={handleSaveAppointment}
+          onDelete={handleDeleteAppointment}
+        />
+
+        {error && (
+          <Alert variant="destructive" className="mt-4">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {success && (
+          <Alert className="mt-4">
+            <AlertDescription>{success}</AlertDescription>
+          </Alert>
+        )}
+      </div>
+    );
+  }
+
+  // ====================
+  //  R E N D E R   O P E R A T O R
+  // ====================
+  function renderOperator() {
+    function handleSelectOperatorEvent(ev) {
+      // Se vuoi aprire modali
+    }
+
+    return (
+      <div className="p-4 md:p-6 max-w-7xl mx-auto w-full">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <h1 className="text-3xl font-bold">Dashboard Operatore</h1>
+          <Button variant="destructive" onClick={handleLogout}>
+            <LogOut className="h-4 w-4 mr-2" />
+            Logout
+          </Button>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Calendario (Slot + Appuntamenti)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Calendar
+              localizer={localizer}
+              events={calendarEvents}
+              startAccessor="start"
+              endAccessor="end"
+              view={operatorCalendarView}
+              onView={setOperatorCalendarView}
+              views={["month", "week", "day"]}
+              date={operatorCalendarDate}
+              onNavigate={setOperatorCalendarDate}
+              style={{ height: 600 }}
+              messages={{
+                next: "Successivo",
+                previous: "Precedente",
+                today: "Oggi",
+                month: "Mese",
+                week: "Settimana",
+                day: "Giorno",
+              }}
+              tooltipAccessor={(event) => {
+                if (event.isSlot) {
+                  return `Slot ${event.slotStatus} (Operatore: ${event.operator_name})`;
                 }
-            }), 201
-
-        finally:
-            conn.close()
-
-    except Exception as e:
-        logger.error(f"Errore registrazione: {str(e)}")
-        return jsonify({"error": "Errore durante la registrazione"}), 500
-
-@app.route("/api/auth/login", methods=["POST"])
-def login():
-    """
-    Login utente. Controlla username + password_hash.
-    """
-    logger.info("Inizio login")
-    start_time = time.time()
-    try:
-        data = request.get_json() or {}
-        logger.info(f"Dati login ricevuti: {data}")
-        
-        if not data or "username" not in data or "password" not in data:
-            return jsonify({"error": "Credenziali mancanti"}), 400
-
-        conn = get_db()
-        try:
-            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-                cursor.execute("""
-                    SELECT id, username, password_hash, email, role, admin_id, phone
-                    FROM users
-                    WHERE username = %s
-                    LIMIT 1
-                """, (data["username"],))
-                user = cursor.fetchone()
-
-            if not user or not check_password_hash(user["password_hash"], data["password"]):
-                return jsonify({"error": "Credenziali non valide"}), 401
-
-            logger.info(f"Login completato in {time.time() - start_time:.2f} secondi")
-            return jsonify({
-                "user": {
-                    "id": user["id"],
-                    "username": user["username"],
-                    "email": user["email"],
-                    "role": user["role"],
-                    "admin_id": user["admin_id"],
-                    "phone": user["phone"]
+                return `Appuntamento con ${event.clientName}`;
+              }}
+              eventPropGetter={(event) => {
+                if (event.isSlot) {
+                  if (event.slotStatus === "approved") {
+                    return { style: { backgroundColor: "#F59E0B" } };
+                  } else if (event.slotStatus === "pending") {
+                    return { style: { backgroundColor: "#9CA3AF" } };
+                  }
+                  return { style: { backgroundColor: "#6B7280" } };
                 }
-            }), 200
+                let bg = "#3B82F6";
+                if (event.status === "completed") bg = "#10B981";
+                else if (event.status === "cancelled") bg = "#EF4444";
+                return { style: { backgroundColor: bg } };
+              }}
+              onSelectEvent={handleSelectOperatorEvent}
+            />
+          </CardContent>
+        </Card>
 
-        finally:
-            conn.close()
+        {error && (
+          <Alert variant="destructive" className="mt-4">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {success && (
+          <Alert className="mt-4">
+            <AlertDescription>{success}</AlertDescription>
+          </Alert>
+        )}
+      </div>
+    );
+  }
 
-    except Exception as e:
-        logger.error(f"Errore login: {str(e)}")
-        return jsonify({"error": "Errore durante il login"}), 500
+  // ====================
+  //  R E N D E R   C L I E N T
+  // ====================
+  function renderClient() {
+    function handleSelectClientEvent(ev) {
+      // Esempio: se vuoi prenotare uno slot
+    }
 
-# =============================
-#  C A L E N D A R   ( T U T T I )
-# =============================
-@app.route("/api/calendar/<int:user_id>", methods=["GET"])
-def get_calendar_data(user_id):
-    """Recupera tutti gli eventi (slot + appuntamenti) in base al ruolo dell'utente."""
-    logger.info(f"Richiesta calendario per user_id: {user_id}")
-    try:
-        conn = get_db()
-        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            # Ruolo utente
-            cursor.execute("SELECT role FROM users WHERE id = %s", (user_id,))
-            user = cursor.fetchone()
-            if not user:
-                return jsonify({"error": "Utente non trovato"}), 404
+    return (
+      <div className="p-4 md:p-6 max-w-7xl mx-auto w-full">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <h1 className="text-3xl font-bold">Dashboard Cliente</h1>
+          <Button variant="destructive" onClick={handleLogout}>
+            <LogOut className="h-4 w-4 mr-2" />
+            Logout
+          </Button>
+        </div>
 
-            # Se admin => tutti gli slot e tutti gli appuntamenti
-            # Se operator => solo i suoi
-            # Se client => slot approved + i propri appuntamenti
-            if user['role'] == "admin":
-                cursor.execute("SELECT * FROM slots")
-                slots = cursor.fetchall()
-                cursor.execute("SELECT * FROM appointments")
-                appointments = cursor.fetchall()
-            elif user['role'] == "operator":
-                cursor.execute("SELECT * FROM slots WHERE operator_id = %s", (user_id,))
-                slots = cursor.fetchall()
-                cursor.execute("SELECT * FROM appointments WHERE operator_id = %s", (user_id,))
-                appointments = cursor.fetchall()
-            else:  # client
-                cursor.execute("SELECT * FROM slots WHERE status = 'approved'")
-                slots = cursor.fetchall()
-                cursor.execute("SELECT * FROM appointments WHERE client_id = %s", (user_id,))
-                appointments = cursor.fetchall()
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Crea Richiesta Slot</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleRequestSlot} className="space-y-4">
+              <div>
+                <Label>Operatore</Label>
+                <Select
+                  onValueChange={(val) =>
+                    setRequestSlotData({ ...requestSlotData, operator_id: val })
+                  }
+                  value={requestSlotData.operator_id}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleziona Operatore" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {operatori.map((op) => (
+                      <SelectItem key={op.id} value={op.id.toString()}>
+                        {op.username}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Giorno (1=Lun,2=Mar,...,0=Dom)</Label>
+                <Select
+                  onValueChange={(val) =>
+                    setRequestSlotData({ ...requestSlotData, day_of_week: val })
+                  }
+                  value={requestSlotData.day_of_week}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Giorno" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Lunedì</SelectItem>
+                    <SelectItem value="2">Martedì</SelectItem>
+                    <SelectItem value="3">Mercoledì</SelectItem>
+                    <SelectItem value="4">Giovedì</SelectItem>
+                    <SelectItem value="5">Venerdì</SelectItem>
+                    <SelectItem value="6">Sabato</SelectItem>
+                    <SelectItem value="0">Domenica</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Ora Inizio</Label>
+                <Input
+                  type="time"
+                  value={requestSlotData.start_time}
+                  onChange={(e) =>
+                    setRequestSlotData({ ...requestSlotData, start_time: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <Label>Ora Fine</Label>
+                <Input
+                  type="time"
+                  value={requestSlotData.end_time}
+                  onChange={(e) =>
+                    setRequestSlotData({ ...requestSlotData, end_time: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <Button type="submit">
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Invia Richiesta Slot
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
-            events = []
-            now = datetime.now()
+        <Card>
+          <CardHeader>
+            <CardTitle>Calendario (Slot + Appuntamenti)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Calendar
+              localizer={localizer}
+              events={calendarEvents}
+              startAccessor="start"
+              endAccessor="end"
+              view={clientCalendarView}
+              onView={setClientCalendarView}
+              views={["month", "week", "day"]}
+              date={clientCalendarDate}
+              onNavigate={setClientCalendarDate}
+              style={{ height: 600 }}
+              messages={{
+                next: "Successivo",
+                previous: "Precedente",
+                today: "Oggi",
+                month: "Mese",
+                week: "Settimana",
+                day: "Giorno",
+              }}
+              tooltipAccessor={(event) => {
+                if (event.isSlot) {
+                  return `Slot ${event.slotStatus} (Operatore: ${event.operator_name})`;
+                }
+                return `Appuntamento con Operatore: ${event.operatorName}`;
+              }}
+              eventPropGetter={(event) => {
+                if (event.isSlot) {
+                  if (event.slotStatus === "approved") {
+                    return { style: { backgroundColor: "#F59E0B" } };
+                  } else if (event.slotStatus === "pending") {
+                    return { style: { backgroundColor: "#9CA3AF" } };
+                  }
+                  return { style: { backgroundColor: "#6B7280" } };
+                }
+                let bg = "#3B82F6";
+                if (event.status === "completed") bg = "#10B981";
+                else if (event.status === "cancelled") bg = "#EF4444";
+                return { style: { backgroundColor: bg } };
+              }}
+              onSelectEvent={handleSelectClientEvent}
+            />
+          </CardContent>
+        </Card>
 
-            # Trasforma slot in eventi
-            for slot in slots:
-                cursor.execute("SELECT username FROM users WHERE id = %s", (slot['operator_id'],))
-                operator = cursor.fetchone()
+        {error && (
+          <Alert variant="destructive" className="mt-4">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {success && (
+          <Alert className="mt-4">
+            <AlertDescription>{success}</AlertDescription>
+          </Alert>
+        )}
+      </div>
+    );
+  }
 
-                # Calcola data concreta (partendo dal day_of_week rispetto ad oggi)
-                diff = slot['day_of_week'] - now.weekday()
-                if diff < 0:
-                    diff += 7
-                base_date = now.date() + timedelta(days=diff)
-                start_dt = datetime.combine(base_date, slot['start_time'])
-                end_dt = datetime.combine(base_date, slot['end_time'])
+  // ====================
+  //  R E N D E R   M A I N
+  // ====================
+  if (view === "login") return renderLogin();
+  if (view === "register") return renderRegister();
+  if (view === "recover") return renderRecover();
 
-                events.append({
-                    "type": "slot",
-                    "id": f"slot-{slot['id']}",
-                    "slot_id": slot['id'],
-                    "operator_id": slot['operator_id'],
-                    "operator_name": operator['username'] if operator else "???",
-                    "start_time": start_dt.isoformat(),
-                    "end_time": end_dt.isoformat(),
-                    "status": slot['status']
-                })
+  if (user?.role === "admin") return renderAdmin();
+  if (user?.role === "operator") return renderOperator();
+  if (user?.role === "client") return renderClient();
 
-            # Trasforma appuntamenti in eventi
-            for appt in appointments:
-                # Recupera utente client e operatore
-                cursor.execute("""
-                    SELECT id, username FROM users
-                    WHERE id IN (%s, %s)
-                """, (appt['client_id'], appt['operator_id']))
-                users_data = cursor.fetchall()
+  return null;
+};
 
-                def find_username(uid):
-                    for u in users_data:
-                        if u['id'] == uid:
-                            return u['username']
-                    return "???"
-
-                clientName = find_username(appt['client_id'])
-                operatorName = find_username(appt['operator_id'])
-
-                events.append({
-                    "type": "appointment",
-                    "id": appt['id'],
-                    "client_id": appt['client_id'],
-                    "operator_id": appt['operator_id'],
-                    "clientName": clientName,
-                    "operatorName": operatorName,
-                    "start_time": appt['start_time'].isoformat(),
-                    "end_time": appt['end_time'].isoformat(),
-                    "service_type": appt['service_type'],
-                    "status": appt['status']
-                })
-
-        return jsonify({"events": events}), 200
-
-    except Exception as e:
-        logger.error(f"Errore calendario: {str(e)}")
-        return jsonify({"error": "Errore durante il recupero del calendario"}), 500
-
-# =============================
-#  A D M I N   R O U T E S
-# =============================
-@app.route("/api/admin/operators/<int:admin_id>", methods=["GET"])
-def get_operators(admin_id):
-    """Lista operatori per admin_id."""
-    try:
-        conn = get_db()
-        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            # Verifica che admin_id corrisponda a un admin
-            cursor.execute("SELECT id FROM users WHERE id = %s AND role = 'admin'", (admin_id,))
-            if not cursor.fetchone():
-                return jsonify({"error": "Non autorizzato"}), 403
-
-            cursor.execute("""
-                SELECT id, username, email, phone, specialization
-                FROM users
-                WHERE admin_id = %s AND role = 'operator'
-            """, (admin_id,))
-            operators = cursor.fetchall()
-
-        return jsonify({"operators": operators}), 200
-
-    except Exception as e:
-        logger.error(f"Errore recupero operatori: {str(e)}")
-        return jsonify({"error": "Errore durante il recupero degli operatori"}), 500
-
-@app.route("/api/admin/clients/<int:admin_id>", methods=["GET"])
-def get_clients(admin_id):
-    """Lista clienti per admin_id."""
-    try:
-        conn = get_db()
-        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            cursor.execute("SELECT id FROM users WHERE id = %s AND role = 'admin'", (admin_id,))
-            if not cursor.fetchone():
-                return jsonify({"error": "Non autorizzato"}), 403
-
-            cursor.execute("""
-                SELECT id, username, email, phone
-                FROM users
-                WHERE admin_id = %s AND role = 'client'
-            """, (admin_id,))
-            clients = cursor.fetchall()
-
-        return jsonify({"clients": clients}), 200
-
-    except Exception as e:
-        logger.error(f"Errore recupero clienti: {str(e)}")
-        return jsonify({"error": "Errore durante il recupero dei clienti"}), 500
-
-@app.route("/api/admin/operators/add", methods=["POST"])
-def add_operator():
-    """Aggiunge un nuovo operatore (role=operator) per un dato admin_id."""
-    try:
-        data = request.get_json() or {}
-        if not data:
-            return jsonify({"error": "Dati mancanti"}), 400
-
-        conn = get_db()
-        with conn.cursor() as cursor:
-            # Verifica admin
-            cursor.execute("SELECT id FROM users WHERE id = %s AND role = 'admin'",
-                           (data.get('admin_id'),))
-            if not cursor.fetchone():
-                return jsonify({"error": "Non autorizzato"}), 403
-
-            # Verifica duplicati
-            cursor.execute("""
-                SELECT username FROM users
-                WHERE username = %s OR email = %s
-            """, (data['username'], data['email']))
-            if cursor.fetchone():
-                return jsonify({"error": "Username o email già esistenti"}), 400
-
-            # Crea operatore
-            hashed = generate_password_hash(data['password'], method="scrypt")
-            cursor.execute("""
-                INSERT INTO users (username, password_hash, email, phone, role, admin_id, specialization)
-                VALUES (%s, %s, %s, %s, 'operator', %s, %s)
-            """, (
-                data['username'],
-                hashed,
-                data['email'],
-                data.get('phone', ''),
-                data['admin_id'],
-                data.get('specialization', '')
-            ))
-            conn.commit()
-
-        return jsonify({"message": "Operatore creato con successo"}), 200
-
-    except Exception as e:
-        logger.error(f"Errore creazione operatore: {str(e)}")
-        return jsonify({"error": "Errore durante la creazione dell'operatore"}), 500
-
-@app.route("/api/admin/appointments", methods=["POST"])
-def add_appointment():
-    """Crea un nuovo appuntamento (admin)."""
-    try:
-        data = request.get_json() or {}
-        if not data:
-            return jsonify({"error": "Dati mancanti"}), 400
-
-        conn = get_db()
-        with conn.cursor() as cursor:
-            # Controllo su operator_id e client_id
-            cursor.execute("""
-                SELECT id, phone FROM users
-                WHERE id IN (%s, %s)
-            """, (data['operator_id'], data['client_id']))
-            found = cursor.fetchall()
-            if len(found) != 2:
-                return jsonify({"error": "Operatore o cliente non valido"}), 400
-
-            cursor.execute("""
-                INSERT INTO appointments (operator_id, client_id, start_time,
-                                          end_time, service_type, created_at)
-                VALUES (%s, %s, %s, %s, %s, NOW())
-            """, (
-                data['operator_id'],
-                data['client_id'],
-                data['start_time'],
-                data['end_time'],
-                data.get('service_type', '')
-            ))
-            conn.commit()
-
-            # Simula notifica WhatsApp
-            client_phone = None
-            for row in found:
-                if row[0] == data['client_id']:
-                    client_phone = row[1]
-            if client_phone:
-                logger.info(f"[FAKE] Invio WhatsApp a {client_phone}: Nuovo appuntamento creato")
-
-        return jsonify({"message": "Appuntamento creato con successo"}), 200
-
-    except Exception as e:
-        logger.error(f"Errore creazione appuntamento: {str(e)}")
-        return jsonify({"error": "Errore durante la creazione dell'appuntamento"}), 500
-
-@app.route("/api/admin/appointments/<int:appointment_id>", methods=["PUT", "DELETE"])
-def manage_appointment_by_id(appointment_id):
-    """Aggiorna o elimina un singolo appuntamento (admin)."""
-    try:
-        conn = get_db()
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT id FROM appointments WHERE id = %s", (appointment_id,))
-            if not cursor.fetchone():
-                return jsonify({"error": "Appuntamento non trovato"}), 404
-
-            if request.method == "DELETE":
-                # Elimina
-                cursor.execute("DELETE FROM appointments WHERE id = %s", (appointment_id,))
-                conn.commit()
-                return jsonify({"message": "Appuntamento eliminato"}), 200
-
-            # Se PUT => aggiorna
-            data = request.get_json() or {}
-            updates = []
-            params = []
-
-            if 'start_time' in data:
-                updates.append("start_time = %s")
-                params.append(data['start_time'])
-            if 'end_time' in data:
-                updates.append("end_time = %s")
-                params.append(data['end_time'])
-            if 'service_type' in data:
-                updates.append("service_type = %s")
-                params.append(data['service_type'])
-            if 'status' in data:
-                updates.append("status = %s")
-                params.append(data['status'])
-
-            if updates:
-                query = f"UPDATE appointments SET {', '.join(updates)} WHERE id = %s"
-                params.append(appointment_id)
-                cursor.execute(query, tuple(params))
-                conn.commit()
-
-        return jsonify({"message": "Appuntamento aggiornato"}), 200
-
-    except Exception as e:
-        logger.error(f"Errore gestione appuntamento: {str(e)}")
-        return jsonify({"error": "Errore durante la gestione dell'appuntamento"}), 500
-
-@app.route("/api/admin/send-reminders", methods=["POST"])
-def send_reminders():
-    """Simula l'invio di reminder WhatsApp per appuntamenti di domani."""
-    try:
-        tomorrow = datetime.now() + timedelta(days=1)
-        start_tomorrow = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_tomorrow = tomorrow.replace(hour=23, minute=59, second=59, microsecond=999999)
-
-        conn = get_db()
-        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            cursor.execute("""
-                SELECT a.start_time, u.phone
-                FROM appointments a
-                JOIN users u ON a.client_id = u.id
-                WHERE a.start_time BETWEEN %s AND %s
-                  AND u.phone IS NOT NULL
-            """, (start_tomorrow, end_tomorrow))
-            appointments = cursor.fetchall()
-
-            for appt in appointments:
-                orario = appt['start_time'].strftime('%H:%M')
-                logger.info(f"[FAKE] Reminder a {appt['phone']}: Appuntamento domani alle {orario}")
-
-        return jsonify({"message": "Notifiche inviate"}), 200
-
-    except Exception as e:
-        logger.error(f"Errore invio reminder: {str(e)}")
-        return jsonify({"error": "Errore durante l'invio dei reminder"}), 500
-
-# =============================
-#  A D M I N   S L O T S
-# =============================
-@app.route("/api/admin/slots/pending", methods=["GET"])
-def get_pending_slots():
-    """Restituisce la lista degli slot con status = 'pending'."""
-    try:
-        conn = get_db()
-        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            cursor.execute("""
-                SELECT id, operator_id, client_id, day_of_week,
-                       start_time, end_time, status
-                FROM slots
-                WHERE status = 'pending'
-            """)
-            slots = cursor.fetchall()
-
-            # Converte gli orari in HH:MM
-            for s in slots:
-                s["start_time"] = s["start_time"].strftime("%H:%M")
-                s["end_time"] = s["end_time"].strftime("%H:%M")
-
-        return jsonify({"slots": slots}), 200
-
-    except Exception as e:
-        logger.error(f"Errore recupero slot pending: {str(e)}")
-        return jsonify({"error": "Errore durante il recupero degli slot pending"}), 500
-
-@app.route("/api/admin/slots/<int:slot_id>/<string:action>", methods=["PUT"])
-def manage_slot(slot_id, action):
-    """Approva (approve) o rifiuta (reject) uno slot in stato pending."""
-    if action not in ['approve', 'reject']:
-        return jsonify({"error": "Azione non valida"}), 400
-
-    try:
-        conn = get_db()
-        with conn.cursor() as cursor:
-            new_status = 'approved' if action == 'approve' else 'rejected'
-            cursor.execute("""
-                UPDATE slots
-                SET status = %s
-                WHERE id = %s AND status = 'pending'
-            """, (new_status, slot_id))
-            conn.commit()
-
-            if cursor.rowcount == 0:
-                return jsonify({"error": "Slot non trovato o non più pending"}), 404
-
-        return jsonify({"message": f"Slot {action}d con successo"}), 200
-
-    except Exception as e:
-        logger.error(f"Errore gestione slot: {str(e)}")
-        return jsonify({"error": f"Errore durante {action} dello slot"}), 500
-
-# =============================
-#  C L I E N T   S L O T S
-# =============================
-@app.route("/api/client/slots/request", methods=["POST"])
-def request_slot():
-    """Il client richiede la creazione di uno slot (status = pending)."""
-    try:
-        data = request.get_json() or {}
-        if not data:
-            return jsonify({"error": "Dati mancanti"}), 400
-
-        conn = get_db()
-        with conn.cursor() as cursor:
-            # Verifica esistenza client e operator
-            cursor.execute("""
-                SELECT id FROM users
-                WHERE id IN (%s, %s)
-            """, (data['client_id'], data['operator_id']))
-            if len(cursor.fetchall()) != 2:
-                return jsonify({"error": "Client o operator non valido"}), 400
-
-            # Crea slot in stato pending
-            cursor.execute("""
-                INSERT INTO slots (operator_id, client_id, day_of_week,
-                                   start_time, end_time, status, is_active)
-                VALUES (%s, %s, %s, %s, %s, 'pending', TRUE)
-            """, (
-                data['operator_id'],
-                data['client_id'],
-                int(data['day_of_week']),
-                data['start_time'],
-                data['end_time']
-            ))
-            conn.commit()
-
-        return jsonify({"message": "Richiesta slot inviata"}), 201
-
-    except Exception as e:
-        logger.error(f"Errore richiesta slot: {str(e)}")
-        return jsonify({"error": "Errore durante la richiesta dello slot"}), 500
-
-# =============================
-#  MAIN
-# =============================
-if __name__ == "__main__":
-    # Avvia server in locale (debug) sulla porta 5000
-    app.run(debug=True, port=5000)
+export default Dashboard;
